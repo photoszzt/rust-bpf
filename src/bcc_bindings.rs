@@ -33,30 +33,6 @@ impl <T> ::std::clone::Clone for __IncompleteArrayField<T> {
     fn clone(&self) -> Self { Self::new() }
 }
 impl <T> ::std::marker::Copy for __IncompleteArrayField<T> { }
-#[repr(C)]
-pub struct __BindgenUnionField<T>(::std::marker::PhantomData<T>);
-impl <T> __BindgenUnionField<T> {
-    #[inline]
-    pub fn new() -> Self { __BindgenUnionField(::std::marker::PhantomData) }
-    #[inline]
-    pub unsafe fn as_ref(&self) -> &T { ::std::mem::transmute(self) }
-    #[inline]
-    pub unsafe fn as_mut(&mut self) -> &mut T { ::std::mem::transmute(self) }
-}
-impl <T> ::std::default::Default for __BindgenUnionField<T> {
-    #[inline]
-    fn default() -> Self { Self::new() }
-}
-impl <T> ::std::clone::Clone for __BindgenUnionField<T> {
-    #[inline]
-    fn clone(&self) -> Self { Self::new() }
-}
-impl <T> ::std::marker::Copy for __BindgenUnionField<T> { }
-impl <T> ::std::fmt::Debug for __BindgenUnionField<T> {
-    fn fmt(&self, fmt: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-        fmt.write_str("__BindgenUnionField")
-    }
-}
 pub const _STDINT_H: ::std::os::raw::c_uint = 1;
 pub const _FEATURES_H: ::std::os::raw::c_uint = 1;
 pub const _DEFAULT_SOURCE: ::std::os::raw::c_uint = 1;
@@ -364,12 +340,12 @@ pub type __caddr_t = *mut ::std::os::raw::c_char;
 pub type __intptr_t = ::std::os::raw::c_long;
 pub type __socklen_t = ::std::os::raw::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct wait {
-    pub w_status: __BindgenUnionField<::std::os::raw::c_int>,
-    pub __wait_terminated: __BindgenUnionField<wait__bindgen_ty_1>,
-    pub __wait_stopped: __BindgenUnionField<wait__bindgen_ty_2>,
-    pub bindgen_union_field: u32,
+#[derive(Copy)]
+pub union wait {
+    pub w_status: ::std::os::raw::c_int,
+    pub __wait_terminated: wait__bindgen_ty_1,
+    pub __wait_stopped: wait__bindgen_ty_2,
+    _bindgen_union_align: u32,
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
@@ -633,11 +609,11 @@ impl Clone for wait {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct __WAIT_STATUS {
-    pub __uptr: __BindgenUnionField<*mut wait>,
-    pub __iptr: __BindgenUnionField<*mut ::std::os::raw::c_int>,
-    pub bindgen_union_field: u64,
+#[derive(Copy)]
+pub union __WAIT_STATUS {
+    pub __uptr: *mut wait,
+    pub __iptr: *mut ::std::os::raw::c_int,
+    _bindgen_union_align: u64,
 }
 #[test]
 fn bindgen_test_layout___WAIT_STATUS() {
@@ -738,89 +714,73 @@ impl Clone for lldiv_t {
     fn clone(&self) -> Self { *self }
 }
 extern "C" {
-    #[link_name = "_Z22__ctype_get_mb_cur_max"]
     pub fn __ctype_get_mb_cur_max() -> usize;
 }
 extern "C" {
-    #[link_name = "_Z4atof"]
     pub fn atof(__nptr: *const ::std::os::raw::c_char) -> f64;
 }
 extern "C" {
-    #[link_name = "_Z4atoi"]
     pub fn atoi(__nptr: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z4atol"]
     pub fn atol(__nptr: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z5atoll"]
     pub fn atoll(__nptr: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_longlong;
 }
 extern "C" {
-    #[link_name = "_Z6strtod"]
     pub fn strtod(__nptr: *const ::std::os::raw::c_char,
                   __endptr: *mut *mut ::std::os::raw::c_char) -> f64;
 }
 extern "C" {
-    #[link_name = "_Z6strtof"]
     pub fn strtof(__nptr: *const ::std::os::raw::c_char,
                   __endptr: *mut *mut ::std::os::raw::c_char) -> f32;
 }
 extern "C" {
-    #[link_name = "_Z7strtold"]
     pub fn strtold(__nptr: *const ::std::os::raw::c_char,
                    __endptr: *mut *mut ::std::os::raw::c_char) -> f64;
 }
 extern "C" {
-    #[link_name = "_Z6strtol"]
     pub fn strtol(__nptr: *const ::std::os::raw::c_char,
                   __endptr: *mut *mut ::std::os::raw::c_char,
                   __base: ::std::os::raw::c_int) -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z7strtoul"]
     pub fn strtoul(__nptr: *const ::std::os::raw::c_char,
                    __endptr: *mut *mut ::std::os::raw::c_char,
                    __base: ::std::os::raw::c_int) -> ::std::os::raw::c_ulong;
 }
 extern "C" {
-    #[link_name = "_Z6strtoq"]
     pub fn strtoq(__nptr: *const ::std::os::raw::c_char,
                   __endptr: *mut *mut ::std::os::raw::c_char,
                   __base: ::std::os::raw::c_int)
      -> ::std::os::raw::c_longlong;
 }
 extern "C" {
-    #[link_name = "_Z7strtouq"]
     pub fn strtouq(__nptr: *const ::std::os::raw::c_char,
                    __endptr: *mut *mut ::std::os::raw::c_char,
                    __base: ::std::os::raw::c_int)
      -> ::std::os::raw::c_ulonglong;
 }
 extern "C" {
-    #[link_name = "_Z7strtoll"]
     pub fn strtoll(__nptr: *const ::std::os::raw::c_char,
                    __endptr: *mut *mut ::std::os::raw::c_char,
                    __base: ::std::os::raw::c_int)
      -> ::std::os::raw::c_longlong;
 }
 extern "C" {
-    #[link_name = "_Z8strtoull"]
     pub fn strtoull(__nptr: *const ::std::os::raw::c_char,
                     __endptr: *mut *mut ::std::os::raw::c_char,
                     __base: ::std::os::raw::c_int)
      -> ::std::os::raw::c_ulonglong;
 }
 extern "C" {
-    #[link_name = "_Z4l64a"]
     pub fn l64a(__n: ::std::os::raw::c_long) -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z4a64l"]
     pub fn a64l(__s: *const ::std::os::raw::c_char) -> ::std::os::raw::c_long;
 }
 pub type u_char = __u_char;
@@ -953,30 +913,25 @@ impl Clone for fd_set {
 }
 pub type fd_mask = __fd_mask;
 extern "C" {
-    #[link_name = "_Z6select"]
     pub fn select(__nfds: ::std::os::raw::c_int, __readfds: *mut fd_set,
                   __writefds: *mut fd_set, __exceptfds: *mut fd_set,
                   __timeout: *mut timeval) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z7pselect"]
     pub fn pselect(__nfds: ::std::os::raw::c_int, __readfds: *mut fd_set,
                    __writefds: *mut fd_set, __exceptfds: *mut fd_set,
                    __timeout: *const timespec, __sigmask: *const __sigset_t)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z13gnu_dev_major"]
     pub fn gnu_dev_major(__dev: ::std::os::raw::c_ulonglong)
      -> ::std::os::raw::c_uint;
 }
 extern "C" {
-    #[link_name = "_Z13gnu_dev_minor"]
     pub fn gnu_dev_minor(__dev: ::std::os::raw::c_ulonglong)
      -> ::std::os::raw::c_uint;
 }
 extern "C" {
-    #[link_name = "_Z15gnu_dev_makedev"]
     pub fn gnu_dev_makedev(__major: ::std::os::raw::c_uint,
                            __minor: ::std::os::raw::c_uint)
      -> ::std::os::raw::c_ulonglong;
@@ -987,11 +942,11 @@ pub type fsblkcnt_t = __fsblkcnt_t;
 pub type fsfilcnt_t = __fsfilcnt_t;
 pub type pthread_t = ::std::os::raw::c_ulong;
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_attr_t {
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 56usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_long>,
-    pub bindgen_union_field: [u64; 7usize],
+#[derive(Copy)]
+pub union pthread_attr_t {
+    pub __size: [::std::os::raw::c_char; 56usize],
+    pub __align: ::std::os::raw::c_long,
+    _bindgen_union_align: [u64; 7usize],
 }
 #[test]
 fn bindgen_test_layout_pthread_attr_t() {
@@ -1043,12 +998,12 @@ impl Clone for __pthread_internal_list {
 }
 pub type __pthread_list_t = __pthread_internal_list;
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_mutex_t {
-    pub __data: __BindgenUnionField<pthread_mutex_t___pthread_mutex_s>,
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 40usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_long>,
-    pub bindgen_union_field: [u64; 5usize],
+#[derive(Copy)]
+pub union pthread_mutex_t {
+    pub __data: pthread_mutex_t___pthread_mutex_s,
+    pub __size: [::std::os::raw::c_char; 40usize],
+    pub __align: ::std::os::raw::c_long,
+    _bindgen_union_align: [u64; 5usize],
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
@@ -1150,11 +1105,11 @@ impl Clone for pthread_mutex_t {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_mutexattr_t {
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 4usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_int>,
-    pub bindgen_union_field: u32,
+#[derive(Copy)]
+pub union pthread_mutexattr_t {
+    pub __size: [::std::os::raw::c_char; 4usize],
+    pub __align: ::std::os::raw::c_int,
+    _bindgen_union_align: u32,
 }
 #[test]
 fn bindgen_test_layout_pthread_mutexattr_t() {
@@ -1178,12 +1133,12 @@ impl Clone for pthread_mutexattr_t {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_cond_t {
-    pub __data: __BindgenUnionField<pthread_cond_t__bindgen_ty_1>,
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 48usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_longlong>,
-    pub bindgen_union_field: [u64; 6usize],
+#[derive(Copy)]
+pub union pthread_cond_t {
+    pub __data: pthread_cond_t__bindgen_ty_1,
+    pub __size: [::std::os::raw::c_char; 48usize],
+    pub __align: ::std::os::raw::c_longlong,
+    _bindgen_union_align: [u64; 6usize],
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
@@ -1284,11 +1239,11 @@ impl Clone for pthread_cond_t {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_condattr_t {
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 4usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_int>,
-    pub bindgen_union_field: u32,
+#[derive(Copy)]
+pub union pthread_condattr_t {
+    pub __size: [::std::os::raw::c_char; 4usize],
+    pub __align: ::std::os::raw::c_int,
+    _bindgen_union_align: u32,
 }
 #[test]
 fn bindgen_test_layout_pthread_condattr_t() {
@@ -1313,12 +1268,12 @@ impl Clone for pthread_condattr_t {
 pub type pthread_key_t = ::std::os::raw::c_uint;
 pub type pthread_once_t = ::std::os::raw::c_int;
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_rwlock_t {
-    pub __data: __BindgenUnionField<pthread_rwlock_t__bindgen_ty_1>,
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 56usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_long>,
-    pub bindgen_union_field: [u64; 7usize],
+#[derive(Copy)]
+pub union pthread_rwlock_t {
+    pub __data: pthread_rwlock_t__bindgen_ty_1,
+    pub __size: [::std::os::raw::c_char; 56usize],
+    pub __align: ::std::os::raw::c_long,
+    _bindgen_union_align: [u64; 7usize],
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
@@ -1450,11 +1405,11 @@ impl Clone for pthread_rwlock_t {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_rwlockattr_t {
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 8usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_long>,
-    pub bindgen_union_field: u64,
+#[derive(Copy)]
+pub union pthread_rwlockattr_t {
+    pub __size: [::std::os::raw::c_char; 8usize],
+    pub __align: ::std::os::raw::c_long,
+    _bindgen_union_align: u64,
 }
 #[test]
 fn bindgen_test_layout_pthread_rwlockattr_t() {
@@ -1479,11 +1434,11 @@ impl Clone for pthread_rwlockattr_t {
 }
 pub type pthread_spinlock_t = ::std::os::raw::c_int;
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_barrier_t {
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 32usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_long>,
-    pub bindgen_union_field: [u64; 4usize],
+#[derive(Copy)]
+pub union pthread_barrier_t {
+    pub __size: [::std::os::raw::c_char; 32usize],
+    pub __align: ::std::os::raw::c_long,
+    _bindgen_union_align: [u64; 4usize],
 }
 #[test]
 fn bindgen_test_layout_pthread_barrier_t() {
@@ -1506,11 +1461,11 @@ impl Clone for pthread_barrier_t {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct pthread_barrierattr_t {
-    pub __size: __BindgenUnionField<[::std::os::raw::c_char; 4usize]>,
-    pub __align: __BindgenUnionField<::std::os::raw::c_int>,
-    pub bindgen_union_field: u32,
+#[derive(Copy)]
+pub union pthread_barrierattr_t {
+    pub __size: [::std::os::raw::c_char; 4usize],
+    pub __align: ::std::os::raw::c_int,
+    _bindgen_union_align: u32,
 }
 #[test]
 fn bindgen_test_layout_pthread_barrierattr_t() {
@@ -1535,21 +1490,17 @@ impl Clone for pthread_barrierattr_t {
     fn clone(&self) -> Self { *self }
 }
 extern "C" {
-    #[link_name = "_Z6random"]
     pub fn random() -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z7srandom"]
     pub fn srandom(__seed: ::std::os::raw::c_uint);
 }
 extern "C" {
-    #[link_name = "_Z9initstate"]
     pub fn initstate(__seed: ::std::os::raw::c_uint,
                      __statebuf: *mut ::std::os::raw::c_char,
                      __statelen: usize) -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z8setstate"]
     pub fn setstate(__statebuf: *mut ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_char;
 }
@@ -1610,77 +1561,61 @@ impl Clone for random_data {
     fn clone(&self) -> Self { *self }
 }
 extern "C" {
-    #[link_name = "_Z8random_r"]
     pub fn random_r(__buf: *mut random_data, __result: *mut i32)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9srandom_r"]
     pub fn srandom_r(__seed: ::std::os::raw::c_uint, __buf: *mut random_data)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z11initstate_r"]
     pub fn initstate_r(__seed: ::std::os::raw::c_uint,
                        __statebuf: *mut ::std::os::raw::c_char,
                        __statelen: usize, __buf: *mut random_data)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z10setstate_r"]
     pub fn setstate_r(__statebuf: *mut ::std::os::raw::c_char,
                       __buf: *mut random_data) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z4rand"]
     pub fn rand() -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z5srand"]
     pub fn srand(__seed: ::std::os::raw::c_uint);
 }
 extern "C" {
-    #[link_name = "_Z6rand_r"]
     pub fn rand_r(__seed: *mut ::std::os::raw::c_uint)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z7drand48"]
     pub fn drand48() -> f64;
 }
 extern "C" {
-    #[link_name = "_Z7erand48"]
     pub fn erand48(__xsubi: *mut ::std::os::raw::c_ushort) -> f64;
 }
 extern "C" {
-    #[link_name = "_Z7lrand48"]
     pub fn lrand48() -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z7nrand48"]
     pub fn nrand48(__xsubi: *mut ::std::os::raw::c_ushort)
      -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z7mrand48"]
     pub fn mrand48() -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z7jrand48"]
     pub fn jrand48(__xsubi: *mut ::std::os::raw::c_ushort)
      -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z7srand48"]
     pub fn srand48(__seedval: ::std::os::raw::c_long);
 }
 extern "C" {
-    #[link_name = "_Z6seed48"]
     pub fn seed48(__seed16v: *mut ::std::os::raw::c_ushort)
      -> *mut ::std::os::raw::c_ushort;
 }
 extern "C" {
-    #[link_name = "_Z7lcong48"]
     pub fn lcong48(__param: *mut ::std::os::raw::c_ushort);
 }
 #[repr(C)]
@@ -1728,115 +1663,93 @@ impl Clone for drand48_data {
     fn clone(&self) -> Self { *self }
 }
 extern "C" {
-    #[link_name = "_Z9drand48_r"]
     pub fn drand48_r(__buffer: *mut drand48_data, __result: *mut f64)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9erand48_r"]
     pub fn erand48_r(__xsubi: *mut ::std::os::raw::c_ushort,
                      __buffer: *mut drand48_data, __result: *mut f64)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9lrand48_r"]
     pub fn lrand48_r(__buffer: *mut drand48_data,
                      __result: *mut ::std::os::raw::c_long)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9nrand48_r"]
     pub fn nrand48_r(__xsubi: *mut ::std::os::raw::c_ushort,
                      __buffer: *mut drand48_data,
                      __result: *mut ::std::os::raw::c_long)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9mrand48_r"]
     pub fn mrand48_r(__buffer: *mut drand48_data,
                      __result: *mut ::std::os::raw::c_long)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9jrand48_r"]
     pub fn jrand48_r(__xsubi: *mut ::std::os::raw::c_ushort,
                      __buffer: *mut drand48_data,
                      __result: *mut ::std::os::raw::c_long)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9srand48_r"]
     pub fn srand48_r(__seedval: ::std::os::raw::c_long,
                      __buffer: *mut drand48_data) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z8seed48_r"]
     pub fn seed48_r(__seed16v: *mut ::std::os::raw::c_ushort,
                     __buffer: *mut drand48_data) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9lcong48_r"]
     pub fn lcong48_r(__param: *mut ::std::os::raw::c_ushort,
                      __buffer: *mut drand48_data) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z6malloc"]
     pub fn malloc(__size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z6calloc"]
     pub fn calloc(__nmemb: usize, __size: usize)
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z7realloc"]
     pub fn realloc(__ptr: *mut ::std::os::raw::c_void, __size: usize)
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z4free"]
     pub fn free(__ptr: *mut ::std::os::raw::c_void);
 }
 extern "C" {
-    #[link_name = "_Z5cfree"]
     pub fn cfree(__ptr: *mut ::std::os::raw::c_void);
 }
 extern "C" {
-    #[link_name = "_Z6alloca"]
     pub fn alloca(__size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z6valloc"]
     pub fn valloc(__size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z14posix_memalign"]
     pub fn posix_memalign(__memptr: *mut *mut ::std::os::raw::c_void,
                           __alignment: usize, __size: usize)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z13aligned_alloc"]
     pub fn aligned_alloc(__alignment: usize, __size: usize)
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z5abort"]
     pub fn abort();
 }
 extern "C" {
-    #[link_name = "_Z6atexit"]
     pub fn atexit(__func: ::std::option::Option<unsafe extern "C" fn()>)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z13at_quick_exit"]
     pub fn at_quick_exit(__func:
                              ::std::option::Option<unsafe extern "C" fn()>)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z7on_exit"]
     pub fn on_exit(__func:
                        ::std::option::Option<unsafe extern "C" fn(__status:
                                                                       ::std::os::raw::c_int,
@@ -1846,70 +1759,56 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z4exit"]
     pub fn exit(__status: ::std::os::raw::c_int);
 }
 extern "C" {
-    #[link_name = "_Z10quick_exit"]
     pub fn quick_exit(__status: ::std::os::raw::c_int);
 }
 extern "C" {
-    #[link_name = "_Z5_Exit"]
     pub fn _Exit(__status: ::std::os::raw::c_int);
 }
 extern "C" {
-    #[link_name = "_Z6getenv"]
     pub fn getenv(__name: *const ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z6putenv"]
     pub fn putenv(__string: *mut ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z6setenv"]
     pub fn setenv(__name: *const ::std::os::raw::c_char,
                   __value: *const ::std::os::raw::c_char,
                   __replace: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z8unsetenv"]
     pub fn unsetenv(__name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z8clearenv"]
     pub fn clearenv() -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z6mktemp"]
     pub fn mktemp(__template: *mut ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z7mkstemp"]
     pub fn mkstemp(__template: *mut ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z8mkstemps"]
     pub fn mkstemps(__template: *mut ::std::os::raw::c_char,
                     __suffixlen: ::std::os::raw::c_int)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z7mkdtemp"]
     pub fn mkdtemp(__template: *mut ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z6system"]
     pub fn system(__command: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z8realpath"]
     pub fn realpath(__name: *const ::std::os::raw::c_char,
                     __resolved: *mut ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_char;
@@ -1921,87 +1820,72 @@ pub type __compar_fn_t =
                                                    *const ::std::os::raw::c_void)
                               -> ::std::os::raw::c_int>;
 extern "C" {
-    #[link_name = "_Z7bsearch"]
     pub fn bsearch(__key: *const ::std::os::raw::c_void,
                    __base: *const ::std::os::raw::c_void, __nmemb: usize,
                    __size: usize, __compar: __compar_fn_t)
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z5qsort"]
     pub fn qsort(__base: *mut ::std::os::raw::c_void, __nmemb: usize,
                  __size: usize, __compar: __compar_fn_t);
 }
 extern "C" {
-    #[link_name = "_Z3abs"]
     pub fn abs(__x: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z4labs"]
     pub fn labs(__x: ::std::os::raw::c_long) -> ::std::os::raw::c_long;
 }
 extern "C" {
-    #[link_name = "_Z5llabs"]
     pub fn llabs(__x: ::std::os::raw::c_longlong)
      -> ::std::os::raw::c_longlong;
 }
 extern "C" {
-    #[link_name = "_Z3div"]
     pub fn div(__numer: ::std::os::raw::c_int, __denom: ::std::os::raw::c_int)
      -> div_t;
 }
 extern "C" {
-    #[link_name = "_Z4ldiv"]
     pub fn ldiv(__numer: ::std::os::raw::c_long,
                 __denom: ::std::os::raw::c_long) -> ldiv_t;
 }
 extern "C" {
-    #[link_name = "_Z5lldiv"]
     pub fn lldiv(__numer: ::std::os::raw::c_longlong,
                  __denom: ::std::os::raw::c_longlong) -> lldiv_t;
 }
 extern "C" {
-    #[link_name = "_Z4ecvt"]
     pub fn ecvt(__value: f64, __ndigit: ::std::os::raw::c_int,
                 __decpt: *mut ::std::os::raw::c_int,
                 __sign: *mut ::std::os::raw::c_int)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z4fcvt"]
     pub fn fcvt(__value: f64, __ndigit: ::std::os::raw::c_int,
                 __decpt: *mut ::std::os::raw::c_int,
                 __sign: *mut ::std::os::raw::c_int)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z4gcvt"]
     pub fn gcvt(__value: f64, __ndigit: ::std::os::raw::c_int,
                 __buf: *mut ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z5qecvt"]
     pub fn qecvt(__value: f64, __ndigit: ::std::os::raw::c_int,
                  __decpt: *mut ::std::os::raw::c_int,
                  __sign: *mut ::std::os::raw::c_int)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z5qfcvt"]
     pub fn qfcvt(__value: f64, __ndigit: ::std::os::raw::c_int,
                  __decpt: *mut ::std::os::raw::c_int,
                  __sign: *mut ::std::os::raw::c_int)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z5qgcvt"]
     pub fn qgcvt(__value: f64, __ndigit: ::std::os::raw::c_int,
                  __buf: *mut ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z6ecvt_r"]
     pub fn ecvt_r(__value: f64, __ndigit: ::std::os::raw::c_int,
                   __decpt: *mut ::std::os::raw::c_int,
                   __sign: *mut ::std::os::raw::c_int,
@@ -2009,7 +1893,6 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z6fcvt_r"]
     pub fn fcvt_r(__value: f64, __ndigit: ::std::os::raw::c_int,
                   __decpt: *mut ::std::os::raw::c_int,
                   __sign: *mut ::std::os::raw::c_int,
@@ -2017,7 +1900,6 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z7qecvt_r"]
     pub fn qecvt_r(__value: f64, __ndigit: ::std::os::raw::c_int,
                    __decpt: *mut ::std::os::raw::c_int,
                    __sign: *mut ::std::os::raw::c_int,
@@ -2025,7 +1907,6 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z7qfcvt_r"]
     pub fn qfcvt_r(__value: f64, __ndigit: ::std::os::raw::c_int,
                    __decpt: *mut ::std::os::raw::c_int,
                    __sign: *mut ::std::os::raw::c_int,
@@ -2033,56 +1914,46 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z5mblen"]
     pub fn mblen(__s: *const ::std::os::raw::c_char, __n: usize)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z6mbtowc"]
     pub fn mbtowc(__pwc: *mut wchar_t, __s: *const ::std::os::raw::c_char,
                   __n: usize) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z6wctomb"]
     pub fn wctomb(__s: *mut ::std::os::raw::c_char, __wchar: wchar_t)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z8mbstowcs"]
     pub fn mbstowcs(__pwcs: *mut wchar_t, __s: *const ::std::os::raw::c_char,
                     __n: usize) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z8wcstombs"]
     pub fn wcstombs(__s: *mut ::std::os::raw::c_char, __pwcs: *const wchar_t,
                     __n: usize) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z7rpmatch"]
     pub fn rpmatch(__response: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z9getsubopt"]
     pub fn getsubopt(__optionp: *mut *mut ::std::os::raw::c_char,
                      __tokens: *const *const ::std::os::raw::c_char,
                      __valuep: *mut *mut ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z10getloadavg"]
     pub fn getloadavg(__loadavg: *mut f64, __nelem: ::std::os::raw::c_int)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z19bpf_module_create_b"]
     pub fn bpf_module_create_b(filename: *const ::std::os::raw::c_char,
                                proto_filename: *const ::std::os::raw::c_char,
                                flags: ::std::os::raw::c_uint)
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z19bpf_module_create_c"]
     pub fn bpf_module_create_c(filename: *const ::std::os::raw::c_char,
                                flags: ::std::os::raw::c_uint,
                                cflags: *mut *const ::std::os::raw::c_char,
@@ -2090,7 +1961,6 @@ extern "C" {
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z31bpf_module_create_c_from_string"]
     pub fn bpf_module_create_c_from_string(text:
                                                *const ::std::os::raw::c_char,
                                            flags: ::std::os::raw::c_uint,
@@ -2100,153 +1970,124 @@ extern "C" {
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z18bpf_module_destroy"]
     pub fn bpf_module_destroy(program: *mut ::std::os::raw::c_void);
 }
 extern "C" {
-    #[link_name = "_Z18bpf_module_license"]
     pub fn bpf_module_license(program: *mut ::std::os::raw::c_void)
      -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z23bpf_module_kern_version"]
     pub fn bpf_module_kern_version(program: *mut ::std::os::raw::c_void)
      -> ::std::os::raw::c_uint;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_num_functions"]
     pub fn bpf_num_functions(program: *mut ::std::os::raw::c_void) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_function_name"]
     pub fn bpf_function_name(program: *mut ::std::os::raw::c_void, id: usize)
      -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_function_start_id"]
     pub fn bpf_function_start_id(program: *mut ::std::os::raw::c_void,
                                  id: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z18bpf_function_start"]
     pub fn bpf_function_start(program: *mut ::std::os::raw::c_void,
                               name: *const ::std::os::raw::c_char)
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z20bpf_function_size_id"]
     pub fn bpf_function_size_id(program: *mut ::std::os::raw::c_void,
                                 id: usize) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_function_size"]
     pub fn bpf_function_size(program: *mut ::std::os::raw::c_void,
                              name: *const ::std::os::raw::c_char) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z14bpf_num_tables"]
     pub fn bpf_num_tables(program: *mut ::std::os::raw::c_void) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z12bpf_table_id"]
     pub fn bpf_table_id(program: *mut ::std::os::raw::c_void,
                         table_name: *const ::std::os::raw::c_char) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z12bpf_table_fd"]
     pub fn bpf_table_fd(program: *mut ::std::os::raw::c_void,
                         table_name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z15bpf_table_fd_id"]
     pub fn bpf_table_fd_id(program: *mut ::std::os::raw::c_void, id: usize)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z14bpf_table_type"]
     pub fn bpf_table_type(program: *mut ::std::os::raw::c_void,
                           table_name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_table_type_id"]
     pub fn bpf_table_type_id(program: *mut ::std::os::raw::c_void, id: usize)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_table_max_entries"]
     pub fn bpf_table_max_entries(program: *mut ::std::os::raw::c_void,
                                  table_name: *const ::std::os::raw::c_char)
      -> usize;
 }
 extern "C" {
-    #[link_name = "_Z24bpf_table_max_entries_id"]
     pub fn bpf_table_max_entries_id(program: *mut ::std::os::raw::c_void,
                                     id: usize) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z15bpf_table_flags"]
     pub fn bpf_table_flags(program: *mut ::std::os::raw::c_void,
                            table_name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z18bpf_table_flags_id"]
     pub fn bpf_table_flags_id(program: *mut ::std::os::raw::c_void, id: usize)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z14bpf_table_name"]
     pub fn bpf_table_name(program: *mut ::std::os::raw::c_void, id: usize)
      -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z18bpf_table_key_desc"]
     pub fn bpf_table_key_desc(program: *mut ::std::os::raw::c_void,
                               table_name: *const ::std::os::raw::c_char)
      -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_table_key_desc_id"]
     pub fn bpf_table_key_desc_id(program: *mut ::std::os::raw::c_void,
                                  id: usize) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z19bpf_table_leaf_desc"]
     pub fn bpf_table_leaf_desc(program: *mut ::std::os::raw::c_void,
                                table_name: *const ::std::os::raw::c_char)
      -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z22bpf_table_leaf_desc_id"]
     pub fn bpf_table_leaf_desc_id(program: *mut ::std::os::raw::c_void,
                                   id: usize) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[link_name = "_Z18bpf_table_key_size"]
     pub fn bpf_table_key_size(program: *mut ::std::os::raw::c_void,
                               table_name: *const ::std::os::raw::c_char)
      -> usize;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_table_key_size_id"]
     pub fn bpf_table_key_size_id(program: *mut ::std::os::raw::c_void,
                                  id: usize) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z19bpf_table_leaf_size"]
     pub fn bpf_table_leaf_size(program: *mut ::std::os::raw::c_void,
                                table_name: *const ::std::os::raw::c_char)
      -> usize;
 }
 extern "C" {
-    #[link_name = "_Z22bpf_table_leaf_size_id"]
     pub fn bpf_table_leaf_size_id(program: *mut ::std::os::raw::c_void,
                                   id: usize) -> usize;
 }
 extern "C" {
-    #[link_name = "_Z22bpf_table_key_snprintf"]
     pub fn bpf_table_key_snprintf(program: *mut ::std::os::raw::c_void,
                                   id: usize, buf: *mut ::std::os::raw::c_char,
                                   buflen: usize,
@@ -2254,7 +2095,6 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z23bpf_table_leaf_snprintf"]
     pub fn bpf_table_leaf_snprintf(program: *mut ::std::os::raw::c_void,
                                    id: usize,
                                    buf: *mut ::std::os::raw::c_char,
@@ -2263,14 +2103,12 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z20bpf_table_key_sscanf"]
     pub fn bpf_table_key_sscanf(program: *mut ::std::os::raw::c_void,
                                 id: usize, buf: *const ::std::os::raw::c_char,
                                 key: *mut ::std::os::raw::c_void)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_table_leaf_sscanf"]
     pub fn bpf_table_leaf_sscanf(program: *mut ::std::os::raw::c_void,
                                  id: usize,
                                  buf: *const ::std::os::raw::c_char,
@@ -2505,7 +2343,7 @@ impl bpf_insn {
     }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
+#[derive(Debug)]
 pub struct bpf_lpm_trie_key {
     pub prefixlen: __u32,
     pub data: __IncompleteArrayField<__u8>,
@@ -2526,9 +2364,6 @@ fn bindgen_test_layout_bpf_lpm_trie_key() {
                 as usize } , 4usize , concat ! (
                 "Alignment of field: " , stringify ! ( bpf_lpm_trie_key ) ,
                 "::" , stringify ! ( data ) ));
-}
-impl Clone for bpf_lpm_trie_key {
-    fn clone(&self) -> Self { *self }
 }
 #[repr(u32)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -2596,17 +2431,17 @@ pub enum bpf_attach_type {
     __MAX_BPF_ATTACH_TYPE = 4,
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct bpf_attr {
-    pub __bindgen_anon_1: __BindgenUnionField<bpf_attr__bindgen_ty_1>,
-    pub __bindgen_anon_2: __BindgenUnionField<bpf_attr__bindgen_ty_2>,
-    pub __bindgen_anon_3: __BindgenUnionField<bpf_attr__bindgen_ty_3>,
-    pub __bindgen_anon_4: __BindgenUnionField<bpf_attr__bindgen_ty_4>,
-    pub __bindgen_anon_5: __BindgenUnionField<bpf_attr__bindgen_ty_5>,
-    pub test: __BindgenUnionField<bpf_attr__bindgen_ty_6>,
-    pub __bindgen_anon_6: __BindgenUnionField<bpf_attr__bindgen_ty_7>,
-    pub info: __BindgenUnionField<bpf_attr__bindgen_ty_8>,
-    pub bindgen_union_field: [u64; 6usize],
+#[derive(Copy)]
+pub union bpf_attr {
+    pub __bindgen_anon_1: bpf_attr__bindgen_ty_1,
+    pub __bindgen_anon_2: bpf_attr__bindgen_ty_2,
+    pub __bindgen_anon_3: bpf_attr__bindgen_ty_3,
+    pub __bindgen_anon_4: bpf_attr__bindgen_ty_4,
+    pub __bindgen_anon_5: bpf_attr__bindgen_ty_5,
+    pub test: bpf_attr__bindgen_ty_6,
+    pub __bindgen_anon_6: bpf_attr__bindgen_ty_7,
+    pub info: bpf_attr__bindgen_ty_8,
+    _bindgen_union_align: [u64; 6usize],
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
@@ -2661,7 +2496,7 @@ impl Clone for bpf_attr__bindgen_ty_1 {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
+#[derive(Copy)]
 pub struct bpf_attr__bindgen_ty_2 {
     pub map_fd: __u32,
     pub key: __u64,
@@ -2669,11 +2504,11 @@ pub struct bpf_attr__bindgen_ty_2 {
     pub flags: __u64,
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct bpf_attr__bindgen_ty_2__bindgen_ty_1 {
-    pub value: __BindgenUnionField<__u64>,
-    pub next_key: __BindgenUnionField<__u64>,
-    pub bindgen_union_field: u64,
+#[derive(Copy)]
+pub union bpf_attr__bindgen_ty_2__bindgen_ty_1 {
+    pub value: __u64,
+    pub next_key: __u64,
+    _bindgen_union_align: u64,
 }
 #[test]
 fn bindgen_test_layout_bpf_attr__bindgen_ty_2__bindgen_ty_1() {
@@ -2931,18 +2766,18 @@ impl Clone for bpf_attr__bindgen_ty_6 {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
+#[derive(Copy)]
 pub struct bpf_attr__bindgen_ty_7 {
     pub __bindgen_anon_1: bpf_attr__bindgen_ty_7__bindgen_ty_1,
     pub next_id: __u32,
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct bpf_attr__bindgen_ty_7__bindgen_ty_1 {
-    pub start_id: __BindgenUnionField<__u32>,
-    pub prog_id: __BindgenUnionField<__u32>,
-    pub map_id: __BindgenUnionField<__u32>,
-    pub bindgen_union_field: u32,
+#[derive(Copy)]
+pub union bpf_attr__bindgen_ty_7__bindgen_ty_1 {
+    pub start_id: __u32,
+    pub prog_id: __u32,
+    pub map_id: __u32,
+    _bindgen_union_align: u32,
 }
 #[test]
 fn bindgen_test_layout_bpf_attr__bindgen_ty_7__bindgen_ty_1() {
@@ -3229,7 +3064,7 @@ impl Clone for __sk_buff {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
+#[derive(Copy)]
 pub struct bpf_tunnel_key {
     pub tunnel_id: __u32,
     pub __bindgen_anon_1: bpf_tunnel_key__bindgen_ty_1,
@@ -3239,11 +3074,11 @@ pub struct bpf_tunnel_key {
     pub tunnel_label: __u32,
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct bpf_tunnel_key__bindgen_ty_1 {
-    pub remote_ipv4: __BindgenUnionField<__u32>,
-    pub remote_ipv6: __BindgenUnionField<[__u32; 4usize]>,
-    pub bindgen_union_field: [u32; 4usize],
+#[derive(Copy)]
+pub union bpf_tunnel_key__bindgen_ty_1 {
+    pub remote_ipv4: __u32,
+    pub remote_ipv6: [__u32; 4usize],
+    _bindgen_union_align: [u32; 4usize],
 }
 #[test]
 fn bindgen_test_layout_bpf_tunnel_key__bindgen_ty_1() {
@@ -3488,7 +3323,7 @@ impl Clone for bpf_map_info {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
+#[derive(Copy)]
 pub struct bpf_sock_ops {
     pub op: __u32,
     pub __bindgen_anon_1: bpf_sock_ops__bindgen_ty_1,
@@ -3501,11 +3336,11 @@ pub struct bpf_sock_ops {
     pub local_port: __u32,
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
-pub struct bpf_sock_ops__bindgen_ty_1 {
-    pub reply: __BindgenUnionField<__u32>,
-    pub replylong: __BindgenUnionField<[__u32; 4usize]>,
-    pub bindgen_union_field: [u32; 4usize],
+#[derive(Copy)]
+pub union bpf_sock_ops__bindgen_ty_1 {
+    pub reply: __u32,
+    pub replylong: [__u32; 4usize],
+    _bindgen_union_align: [u32; 4usize],
 }
 #[test]
 fn bindgen_test_layout_bpf_sock_ops__bindgen_ty_1() {
@@ -3610,7 +3445,6 @@ pub enum _bindgen_ty_2 {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum bpf_probe_attach_type { BPF_PROBE_ENTRY = 0, BPF_PROBE_RETURN = 1, }
 extern "C" {
-    #[link_name = "_Z14bpf_create_map"]
     pub fn bpf_create_map(map_type: bpf_map_type,
                           key_size: ::std::os::raw::c_int,
                           value_size: ::std::os::raw::c_int,
@@ -3619,7 +3453,6 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z15bpf_update_elem"]
     pub fn bpf_update_elem(fd: ::std::os::raw::c_int,
                            key: *mut ::std::os::raw::c_void,
                            value: *mut ::std::os::raw::c_void,
@@ -3627,33 +3460,28 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z15bpf_lookup_elem"]
     pub fn bpf_lookup_elem(fd: ::std::os::raw::c_int,
                            key: *mut ::std::os::raw::c_void,
                            value: *mut ::std::os::raw::c_void)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z15bpf_delete_elem"]
     pub fn bpf_delete_elem(fd: ::std::os::raw::c_int,
                            key: *mut ::std::os::raw::c_void)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_get_first_key"]
     pub fn bpf_get_first_key(fd: ::std::os::raw::c_int,
                              key: *mut ::std::os::raw::c_void,
                              key_size: usize) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z16bpf_get_next_key"]
     pub fn bpf_get_next_key(fd: ::std::os::raw::c_int,
                             key: *mut ::std::os::raw::c_void,
                             next_key: *mut ::std::os::raw::c_void)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z13bpf_prog_load"]
     pub fn bpf_prog_load(prog_type: bpf_prog_type, insns: *const bpf_insn,
                          insn_len: ::std::os::raw::c_int,
                          license: *const ::std::os::raw::c_char,
@@ -3663,13 +3491,11 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_attach_socket"]
     pub fn bpf_attach_socket(sockfd: ::std::os::raw::c_int,
                              progfd: ::std::os::raw::c_int)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_open_raw_sock"]
     pub fn bpf_open_raw_sock(name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
@@ -3690,7 +3516,6 @@ pub type perf_reader_raw_cb =
 pub type perf_reader_lost_cb =
     ::std::option::Option<unsafe extern "C" fn(lost: u64)>;
 extern "C" {
-    #[link_name = "_Z17bpf_attach_kprobe"]
     pub fn bpf_attach_kprobe(progfd: ::std::os::raw::c_int,
                              attach_type: bpf_probe_attach_type,
                              ev_name: *const ::std::os::raw::c_char,
@@ -3702,12 +3527,10 @@ extern "C" {
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_detach_kprobe"]
     pub fn bpf_detach_kprobe(ev_name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_attach_uprobe"]
     pub fn bpf_attach_uprobe(progfd: ::std::os::raw::c_int,
                              attach_type: bpf_probe_attach_type,
                              ev_name: *const ::std::os::raw::c_char,
@@ -3720,12 +3543,10 @@ extern "C" {
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z17bpf_detach_uprobe"]
     pub fn bpf_detach_uprobe(ev_name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_attach_tracepoint"]
     pub fn bpf_attach_tracepoint(progfd: ::std::os::raw::c_int,
                                  tp_category: *const ::std::os::raw::c_char,
                                  tp_name: *const ::std::os::raw::c_char,
@@ -3737,13 +3558,11 @@ extern "C" {
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_detach_tracepoint"]
     pub fn bpf_detach_tracepoint(tp_category: *const ::std::os::raw::c_char,
                                  tp_name: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z20bpf_open_perf_buffer"]
     pub fn bpf_open_perf_buffer(raw_cb: perf_reader_raw_cb,
                                 lost_cb: perf_reader_lost_cb,
                                 cb_cookie: *mut ::std::os::raw::c_void,
@@ -3753,13 +3572,11 @@ extern "C" {
      -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    #[link_name = "_Z14bpf_attach_xdp"]
     pub fn bpf_attach_xdp(dev_name: *const ::std::os::raw::c_char,
                           progfd: ::std::os::raw::c_int, flags: u32)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z21bpf_attach_perf_event"]
     pub fn bpf_attach_perf_event(progfd: ::std::os::raw::c_int, ev_type: u32,
                                  ev_config: u32, sample_period: u64,
                                  sample_freq: u64, pid: pid_t,
@@ -3768,25 +3585,21 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z19bpf_open_perf_event"]
     pub fn bpf_open_perf_event(type_: u32, config: u64,
                                pid: ::std::os::raw::c_int,
                                cpu: ::std::os::raw::c_int)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z23bpf_close_perf_event_fd"]
     pub fn bpf_close_perf_event_fd(fd: ::std::os::raw::c_int)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z11bpf_obj_pin"]
     pub fn bpf_obj_pin(fd: ::std::os::raw::c_int,
                        pathname: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z11bpf_obj_get"]
     pub fn bpf_obj_get(pathname: *const ::std::os::raw::c_char)
      -> ::std::os::raw::c_int;
 }
@@ -3796,7 +3609,6 @@ pub struct perf_reader {
     _unused: [u8; 0],
 }
 extern "C" {
-    #[link_name = "_Z15perf_reader_new"]
     pub fn perf_reader_new(cb: perf_reader_cb, raw_cb: perf_reader_raw_cb,
                            lost_cb: perf_reader_lost_cb,
                            cb_cookie: *mut ::std::os::raw::c_void,
@@ -3804,33 +3616,27 @@ extern "C" {
      -> *mut perf_reader;
 }
 extern "C" {
-    #[link_name = "_Z16perf_reader_free"]
     pub fn perf_reader_free(ptr: *mut ::std::os::raw::c_void);
 }
 extern "C" {
-    #[link_name = "_Z16perf_reader_mmap"]
     pub fn perf_reader_mmap(reader: *mut perf_reader,
                             type_: ::std::os::raw::c_uint,
                             sample_type: ::std::os::raw::c_ulong)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z22perf_reader_event_read"]
     pub fn perf_reader_event_read(reader: *mut perf_reader);
 }
 extern "C" {
-    #[link_name = "_Z16perf_reader_poll"]
     pub fn perf_reader_poll(num_readers: ::std::os::raw::c_int,
                             readers: *mut *mut perf_reader,
                             timeout: ::std::os::raw::c_int)
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z14perf_reader_fd"]
     pub fn perf_reader_fd(reader: *mut perf_reader) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z18perf_reader_set_fd"]
     pub fn perf_reader_set_fd(reader: *mut perf_reader,
                               fd: ::std::os::raw::c_int);
 }

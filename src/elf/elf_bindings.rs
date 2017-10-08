@@ -2,6 +2,7 @@
 
 pub const BUF_SIZE_MAP_NS: ::std::os::raw::c_uint = 256;
 #[repr(C)]
+#[derive(Copy)]
 pub struct bpf_map_def {
     pub type_: ::std::os::raw::c_uint,
     pub key_size: ::std::os::raw::c_uint,
@@ -53,7 +54,11 @@ fn bindgen_test_layout_bpf_map_def() {
                 "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
                 stringify ! ( namespace ) ));
 }
+impl Clone for bpf_map_def {
+    fn clone(&self) -> Self { *self }
+}
 #[repr(C)]
+#[derive(Copy)]
 pub struct bpf_map {
     pub fd: ::std::os::raw::c_int,
     pub def: bpf_map_def,
@@ -75,13 +80,14 @@ fn bindgen_test_layout_bpf_map() {
                 "Alignment of field: " , stringify ! ( bpf_map ) , "::" ,
                 stringify ! ( def ) ));
 }
+impl Clone for bpf_map {
+    fn clone(&self) -> Self { *self }
+}
 extern "C" {
-    #[link_name = "_Z20bpf_apply_relocation"]
     pub fn bpf_apply_relocation(fd: ::std::os::raw::c_int,
                                 insn: *mut bpf_insn);
 }
 extern "C" {
-    #[link_name = "_Z14bpf_create_map"]
     pub fn bpf_create_map(map_type: bpf_map_type,
                           key_size: ::std::os::raw::c_int,
                           value_size: ::std::os::raw::c_int,
@@ -89,13 +95,11 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z12bpf_load_map"]
     pub fn bpf_load_map(map_def: *mut bpf_map_def,
                         path: *const ::std::os::raw::c_char) -> *mut bpf_map;
 }
 extern "C" {
-    #[link_name = "_Z13bpf_prog_load"]
-    pub fn bpf_prog_load(prog_type: bpf_prog_type, insns: *const bpf_insn,
+    pub fn bpf_prog_load(prog_type: bpf_prog_type, insns: *mut bpf_insn,
                          prog_len: ::std::os::raw::c_int,
                          license: *const ::std::os::raw::c_char,
                          kern_version: ::std::os::raw::c_int,
@@ -104,7 +108,6 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z18bpf_update_element"]
     pub fn bpf_update_element(fd: ::std::os::raw::c_int,
                               key: *mut ::std::os::raw::c_void,
                               value: *mut ::std::os::raw::c_void,
@@ -112,7 +115,6 @@ extern "C" {
      -> ::std::os::raw::c_int;
 }
 extern "C" {
-    #[link_name = "_Z19perf_event_open_map"]
     pub fn perf_event_open_map(pid: ::std::os::raw::c_int,
                                cpu: ::std::os::raw::c_int,
                                group_fd: ::std::os::raw::c_int,

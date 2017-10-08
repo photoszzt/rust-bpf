@@ -1,50 +1,41 @@
 extern crate libc;
 extern crate nix;
+use std::error::Error;
+use self::nix::NixPath;
 
 const BPFFS_PATH: &'static str = "/sys/fs/bpf";
+const FSTYPE: &'static str = "bpf";
 
-static FS_MAGIC_BPFFS: i32 = 0;
-
-pub unsafe fn init() {
-    // https://github.com/coreutils/coreutils/blob/v8.27/src/stat.c#L275
-    // https://github.com/torvalds/linux/blob/v4.8/include/uapi/linux/magic.h#L80
-    let magic = 0xCAFE4A11;
-    // 0xCAFE4A11 overflows an int32, which is what's expected by Statfs_t.Type in 32bit platforms.
-    // To avoid conditional compilation for all 32bit/64bit platforms, we use an unsafe cast
-    FS_MAGIC_BPFFS = magic as i32;
-}
+static FS_MAGIC_BPFFS: i32 = 0xCAFE4A11;
+const NONE: Option<&'static [u8]> = None;
 
 // IsMounted checks if the BPF fs is mounted already
-pub unsafe fn is_mounted() -> Result {
-    let data = libc::statfs::default();
-    match nix::sys::statfs(BPFS_PATH, &data.as_ptr()) {
-        Ok(_) => Ok(data.f_type == FS_MAGIC_BPFS),
+pub fn is_mounted() -> Result<bool, String> {
+    let mut data: libc::statfs = unsafe { ::std::mem::zeroed() };
+    match nix::sys::statfs::statfs(BPFFS_PATH, &mut data) {
+        Ok(_) => Ok(data.f_type == FS_MAGIC_BPFFS as i64),
         Err(res) => {
-            Err(format!("Cannot statfs {}: {}", BPFS_PATH, res.description()));
+            Err(format!("Cannot statfs {}: {}", BPFFS_PATH, res.description()))
         }
     }
 }
 
-pub unsafe fn mounted() -> Result {
+pub unsafe fn mounted() -> Result<(), String> {
     match is_mounted() {
         Ok(res) => {
             if !res {
-                match nix::mount::mount(Some(BPFS_PATH),
-                BPFS_PATH,
-                Some("bpf"),
-                0,
-                None) {
-                    Ok(_),
-                    Err(res) => {
-                        Err(format!("Error mounting {}: {}",
-                                    BPFS_PATH,
-                                    res.description()))
-                    }
+                let res_mount = nix::mount::mount(Some(BPFFS_PATH), BPFFS_PATH, Some(FSTYPE),
+                                                  nix::mount::MsFlags::from_bits_truncate(0),
+                                                  NONE);
+                if res_mount.is_err() {
+                    return Err("Fail to mount".to_string());
+                } else {
+                    return Ok(())
                 }
             } else {
-                Ok(res)
+                Ok(())
             }
         },
-        Err
+        Err(e) => Err(e)
     }
 }
