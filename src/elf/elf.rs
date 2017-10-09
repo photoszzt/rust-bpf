@@ -18,13 +18,13 @@ const USE_CURRENT_KERNEL_VERSION : u64 = 0xFFFFFFFE;
 
 pub struct Module {
     file_name: String,
-    file: &elf::File,
+    file: elf::File,
 }
 
 pub fn bpf_create_map(map_type: bpf_map_type,
-                             key_size: u32,
-                             value_size: u32,
-                             max_entries: u32) -> i32 {
+                      key_size: u32,
+                      value_size: u32,
+                      max_entries: u32) -> i32 {
     let attr = bpf_attr::bpf_attr_map_create(map_type as u32,
                                              key_size,
                                              value_size,
@@ -32,8 +32,8 @@ pub fn bpf_create_map(map_type: bpf_map_type,
                                              0);
     let ret = unsafe {
         syscall!(BPF, bpf_cmd::BPF_MAP_CREATE,
-                       &attr as *const _ as usize,
-                       ::std::mem::size_of::<bpf_attr>())
+                 &attr as *const _ as usize,
+                 ::std::mem::size_of::<bpf_attr>())
     };
     if let Some(raw_os_err) = Error::last_os_error().raw_os_error() {
         if raw_os_err == libc::EPERM {
@@ -48,16 +48,18 @@ pub fn bpf_create_map(map_type: bpf_map_type,
                 rlim_cur: 0,
                 rlim_max: 0,
             };
-            if libc::getrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
-                rl.rlim_max = libc::RLIM_INFINITY;
-                rl.rlim_cur = rl.rlim_max;
-                if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) != 0 {
-                    let ret = syscall!(BPF, bpf_cmd::BPF_MAP_CREATE,
-                                       &attr as *const _ as usize, ::std::mem::size_of::<bpf_attr>());
-                } else {
-                    println!("setrlimit() failed with errno={}", Error::last_os_error()
-                             .raw_os_error().unwrap());
-                    return -1;
+            unsafe {
+                if libc::getrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
+                    rl.rlim_max = libc::RLIM_INFINITY;
+                    rl.rlim_cur = rl.rlim_max;
+                    if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) != 0 {
+                        let ret = syscall!(BPF, bpf_cmd::BPF_MAP_CREATE,
+                                           &attr as *const _ as usize, ::std::mem::size_of::<bpf_attr>());
+                    } else {
+                        println!("setrlimit() failed with errno={}", Error::last_os_error()
+                                 .raw_os_error().unwrap());
+                        return -1;
+                    }
                 }
             }
         }
@@ -95,18 +97,18 @@ pub unsafe fn elf_read_version(module: &Module) -> Result<u32, String> {
 pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {
 }
 
-#[no_mangle]
-pub unsafe fn load(module: &Module) -> Result<(), String>{
-    if module.file_name != "" {
-        let path = PathBuf::from(&module.file_name);
-        module.file = match elf::File::open_path(&path) {
-            Ok(f) => f,
-            Err(e) => None,
-        };
-    }
-
-    let license = elf_read_license(module)?;
-
-    let version = elf_read_version(module)?;
-
-}
+// #[no_mangle]
+// pub unsafe fn load(module: &mut Module) -> Result<(), String>{
+//     if module.file_name != "" {
+//         let path = PathBuf::from(&module.file_name);
+//         module.file = match elf::File::open_path(&path) {
+//             Ok(f) => f,
+//             Err(e) => panic!("Fail to open file: {}", &module.file_name),
+//         };
+//     }
+// 
+//     let license = elf_read_license(module)?;
+// 
+//     let version = elf_read_version(module)?;
+// 
+// }
