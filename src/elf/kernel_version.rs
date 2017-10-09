@@ -64,7 +64,7 @@ fn current_version_debian() -> Result<u32, String> {
     return kernel_version_from_release_string(matched);
 }
 
-fn current_kernel_version() -> Result<u32, String>{
+pub fn current_kernel_version() -> Result<u32, String>{
     let v = current_version_ubuntu();
     if let Ok(version) = v {
         return Ok(version);
