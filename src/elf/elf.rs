@@ -109,6 +109,8 @@ pub fn elf_read_maps(module: &Module) -> Result<HashMap<String>, String> {
                                ::std::mem::size_of::<bpf_map_def>()));
         }
 
+        let name = sec.shdr.name.trim_left_matches("maps/");
+
     }
 }
 
