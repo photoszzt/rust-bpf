@@ -4,6 +4,7 @@ extern crate elf;
 extern crate byteorder;
 
 use bpf_bindings::*;
+use elf_bindings::*;
 use bpf::*;
 use kernel_version::*;
 use std::io::Error;
@@ -110,7 +111,10 @@ pub fn elf_read_maps(module: &Module) -> Result<HashMap<String>, String> {
         }
 
         let name = sec.shdr.name.trim_left_matches("maps/");
-
+        let map_def = &*(&sec.data[0] as *const u8 as *const bpf_map_def);
+        if map_def.pinning > 0 {
+            
+        }
     }
 }
 

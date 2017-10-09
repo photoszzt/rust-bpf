@@ -2,7 +2,6 @@
 
 pub const BUF_SIZE_MAP_NS: ::std::os::raw::c_uint = 256;
 #[repr(C)]
-#[derive(Copy)]
 pub struct bpf_map_def {
     pub type_: ::std::os::raw::c_uint,
     pub key_size: ::std::os::raw::c_uint,
@@ -54,11 +53,7 @@ fn bindgen_test_layout_bpf_map_def() {
                 "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
                 stringify ! ( namespace ) ));
 }
-impl Clone for bpf_map_def {
-    fn clone(&self) -> Self { *self }
-}
 #[repr(C)]
-#[derive(Copy)]
 pub struct bpf_map {
     pub fd: ::std::os::raw::c_int,
     pub def: bpf_map_def,
@@ -79,65 +74,4 @@ fn bindgen_test_layout_bpf_map() {
                 , 4usize , concat ! (
                 "Alignment of field: " , stringify ! ( bpf_map ) , "::" ,
                 stringify ! ( def ) ));
-}
-impl Clone for bpf_map {
-    fn clone(&self) -> Self { *self }
-}
-extern "C" {
-    pub fn bpf_apply_relocation(fd: ::std::os::raw::c_int,
-                                insn: *mut bpf_insn);
-}
-extern "C" {
-    pub fn bpf_create_map(map_type: bpf_map_type,
-                          key_size: ::std::os::raw::c_int,
-                          value_size: ::std::os::raw::c_int,
-                          max_entries: ::std::os::raw::c_int)
-     -> ::std::os::raw::c_int;
-}
-extern "C" {
-    pub fn bpf_load_map(map_def: *mut bpf_map_def,
-                        path: *const ::std::os::raw::c_char) -> *mut bpf_map;
-}
-extern "C" {
-    pub fn bpf_prog_load(prog_type: bpf_prog_type, insns: *mut bpf_insn,
-                         prog_len: ::std::os::raw::c_int,
-                         license: *const ::std::os::raw::c_char,
-                         kern_version: ::std::os::raw::c_int,
-                         log_buf: *mut ::std::os::raw::c_char,
-                         log_size: ::std::os::raw::c_int)
-     -> ::std::os::raw::c_int;
-}
-extern "C" {
-    pub fn bpf_update_element(fd: ::std::os::raw::c_int,
-                              key: *mut ::std::os::raw::c_void,
-                              value: *mut ::std::os::raw::c_void,
-                              flags: ::std::os::raw::c_ulonglong)
-     -> ::std::os::raw::c_int;
-}
-extern "C" {
-    pub fn perf_event_open_map(pid: ::std::os::raw::c_int,
-                               cpu: ::std::os::raw::c_int,
-                               group_fd: ::std::os::raw::c_int,
-                               flags: ::std::os::raw::c_ulong)
-     -> ::std::os::raw::c_int;
-}
-#[repr(C)]
-#[derive(Debug, Copy)]
-pub struct bpf_insn {
-    pub _address: u8,
-}
-impl Clone for bpf_insn {
-    fn clone(&self) -> Self { *self }
-}
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum bpf_map_type { }
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum bpf_prog_type { }
-#[repr(C)]
-#[derive(Debug, Copy)]
-pub struct bpf_insn {
-    pub _address: u8,
-}
-impl Clone for bpf_insn {
-    fn clone(&self) -> Self { *self }
 }
