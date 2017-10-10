@@ -11,10 +11,10 @@ use std::io::Error;
 use std::default::Default;
 use std::path::PathBuf;
 use std::io::Cursor;
-use bpffs;
+use bpffs::*;
+use pinning::BPFDIRGLOBALS;
 use self::byteorder::LittleEndian;
 use self::byteorder::ReadBytesExt;
-
 
 const USE_CURRENT_KERNEL_VERSION : u64 = 0xFFFFFFFE;
 
@@ -23,10 +23,23 @@ pub struct Module {
     file: elf::File,
 }
 
-pub fn bpf_create_map(map_type: bpf_map_type,
-                      key_size: u32,
-                      value_size: u32,
-                      max_entries: u32) -> i32 {
+pub enum pin {
+    PIN_NONE = 0,
+    PIN_OBJECT_NS,
+    PIN_GLOBAL_NS,
+    PIN_CUSTOM_NS,
+}
+
+pub struct SectionParams {
+    perf_ring_buffer_page_count: i32,
+    skip_perf_map_initialization: bool,
+    pin_path: String,
+}
+
+fn bpf_create_map(map_type: bpf_map_type,
+                  key_size: u32,
+                  value_size: u32,
+                  max_entries: u32) -> i32 {
     let attr = bpf_attr::bpf_attr_map_create(map_type as u32,
                                              key_size,
                                              value_size,
@@ -69,72 +82,103 @@ pub fn bpf_create_map(map_type: bpf_map_type,
     return ret as i32;
 }
 
-#[no_mangle]
-pub unsafe fn elf_read_license(module: &Module) -> Result<String, String> {
-    match module.file.get_section("license") {
-        Some(ref s) => match ::std::str::from_utf8(&s.data) {
-            Ok(res) => Ok(res.to_string()),
-            Err(e) => Err(format!("Fail to convert result to String: {}", e))
-        },
-        None => Err("Failed to look up license section".to_string()),
-    }
-}
-
-pub unsafe fn elf_read_version(module: &Module) -> Result<u32, String> {
-    match module.file.get_section("version") {
-        Some(s) => {
-            if s.data.len() != 4 {
-                return Err("version is not a __u32".to_string())
-            }
-            let mut buf = Cursor::new(&s.data);
-            match buf.read_u32::<LittleEndian>() {
-                Ok(res) => Ok(res),
-                Err(_) => Err("Fail to read version".to_string())
-            }
-        }
-        None => Err("Failed to look up version section".to_string()),
-    }
-}
-
 pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {
 }
 
-pub fn elf_read_maps(module: &Module) -> Result<HashMap<String>, String> {
-    for sec in &module.file.sections {
-        if sec.shdr.name.starts_with("maps/") {
-            continue;
+fn get_map_path(map_def: &bpf_map_def, map_name: String, pin_path: String) -> Result<PathBuf, String> {
+    match map_def.pinning {
+        PIN_OBJECT_NS => Err("Not implemented yet"),
+        PIN_GLOBAL_NS => {
+            let namespace = map_def.namespace.iter().cloned().collect::<String>();
+            if namespace == "" {
+                return Err(format!("map {} has empty namespace", map_name));
+            }
+            Ok([BPFFS_PATH, namespace, BPFDIRGLOBALS, map_name].iter().collect())
         }
-        let data = &module.file.data;
-        if data.len() != ::std::mem::size_of::<bpf_map_def>() {
-            return Err(format!("only one map with size {} bytes allowed per section (check bpf_map_def)",
-                               ::std::mem::size_of::<bpf_map_def>()));
+        PIN_CUSTOM_NS => {
+            if pin_path == "" {
+                return Err(format!("no pin path given for map {} with PIN_CUSTOM_NS", mapName))
+            }
+            Ok([BPFFS_PATH, pin_path].iter().collect())
         }
-
-        let name = sec.shdr.name.trim_left_matches("maps/");
-        let map_def = &*(&sec.data[0] as *const u8 as *const bpf_map_def);
-        if map_def.pinning > 0 {
-            
+        default => {
+            // map is not pinned
+            Ok(PathBuf::from(""))
         }
     }
 }
 
-#[no_mangle]
-pub unsafe fn load(module: &mut Module) -> Result<(), String>{
-    if module.file_name != "" {
-        let path = PathBuf::from(&module.file_name);
-        module.file = match elf::File::open_path(&path) {
-            Ok(f) => f,
-            Err(e) => panic!("Fail to open file: {}", &module.file_name),
-        };
+fn valid_map_path(path: PathBuf) -> bool {
+    if !path.starts_with(BPFFS_PATH) {
+        false
+    } else {
+        path.canonicalize().unwrap()
+    }
+}
+
+fn create_map_path(map_def: &bpf_map_def, map_name: String, params: SectionParams) -> Result<String, String> {
+    map_path = get_map_path(map_def, map_name, params.pin_path)?;
+
+}
+
+impl Module {
+    fn elf_read_license(&self) -> Result<String, String> {
+        match self.file.get_section("license") {
+            Some(ref s) => match ::std::str::from_utf8(&s.data) {
+                Ok(res) => Ok(res.to_string()),
+                Err(e) => Err(format!("Fail to convert result to String: {}", e))
+            },
+            None => Err("Failed to look up license section".to_string()),
+        }
     }
 
-    let license = elf_read_license(module)?;
-
-    let version = elf_read_version(module)?;
-
-    if version == USE_CURRENT_KERNEL_VERSION {
-        let version = current_kernel_version()?;
+    fn elf_read_version(&self) -> Result<u32, String> {
+        match self.file.get_section("version") {
+            Some(s) => {
+                if s.data.len() != 4 {
+                    return Err("version is not a __u32".to_string())
+                }
+                let mut buf = Cursor::new(&s.data);
+                match buf.read_u32::<LittleEndian>() {
+                    Ok(res) => Ok(res),
+                    Err(_) => Err("Fail to read version".to_string())
+                }
+            }
+            None => Err("Failed to look up version section".to_string()),
+        }
     }
 
+    fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String>, String> {
+        for sec in &self.file.sections {
+            if sec.shdr.name.starts_with("maps/") {
+                continue;
+            }
+            let data = &self.file.data;
+            if data.len() != ::std::mem::size_of::<bpf_map_def>() {
+                return Err(format!("only one map with size {} bytes allowed per section (check bpf_map_def)",
+                                   ::std::mem::size_of::<bpf_map_def>()));
+            }
 
+            let name = sec.shdr.name.trim_left_matches("maps/");
+            let map_def = &*(&sec.data[0] as *const u8 as *const bpf_map_def);
+        }
+    }
+
+    pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String>{
+        if module.file_name != "" {
+            let path = PathBuf::from(&module.file_name);
+            module.file = match elf::File::open_path(&path) {
+                Ok(f) => f,
+                Err(e) => panic!("Fail to open file: {}", &module.file_name),
+            };
+        }
+
+        let license = elf_read_license(module)?;
+
+        let version = elf_read_version(module)?;
+
+        if version == USE_CURRENT_KERNEL_VERSION {
+            let version = current_kernel_version()?;
+        }
+    }
 }
