@@ -37,6 +37,14 @@ pub struct SectionParams {
     pin_path: String,
 }
 
+// represents a ebpf map. 
+pub struct EbpfMap {
+    name: String,
+    m: bpf_map,
+
+    pmufds: Vec<int>,
+}
+
 fn bpf_create_map(map_type: bpf_map_type,
                   key_size: u32,
                   value_size: u32,
@@ -83,18 +91,42 @@ fn bpf_create_map(map_type: bpf_map_type,
     return ret as i32;
 }
 
-fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> bpf_map {
+fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String> {
     let map_dev_ = map_def.clone();
-    let map = bpf_map {
+    let mut map = bpf_map {
         fd: 1,
         def: map_dev_,
     };
+    let mut do_pin = false;
     match map_def->pinning {
-        1 => return 0,
+        1 => return Err("Not support object pinning"),
         2, 3 => {
-
+            if nix::sys::stat().map_err(stringify).is_ok() {
+                let fd = bpf_obj_get(path.to_str().unwrap_or("").as_bytes() as *const char);
+                if fd < 0 {
+                    return Err("Fail to get pinned obj fd");
+                }
+                map.fd = fd;
+                return Ok(map);
+            }
+            do_pin = true;
         }
     }
+
+    map.fd = bpf_create_map(map_def.type, map_def.key_size, map_def.value_size, map_def.max_entries);
+
+    if map.fd < 0 {
+        return Err("Fail to create map");
+    }
+
+    if do_pin {
+        let fd = bpf_pin_object(map->fd, path.to_str().unwrap_or("").as_bytes() as *const char);
+        if fd < 0 {
+            return Err("Fail to pin object");
+        }
+    }
+
+    Ok(map)
 }
 
 pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {
@@ -181,7 +213,7 @@ impl Module {
         }
     }
 
-    fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String>, String> {
+    fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String, >, String> {
         for sec in &self.file.sections {
             if sec.shdr.name.starts_with("maps/") {
                 continue;
@@ -195,7 +227,7 @@ impl Module {
             let name = sec.shdr.name.trim_left_matches("maps/");
             let map_def = &*(&sec.data[0] as *const u8 as *const bpf_map_def);
             let map_path = create_map_path(map_def, name, params[sec.shdr.name])?;
-             
+            let map = bpf_load_map(map_def, &map_path)?;             
         }
     }
 
