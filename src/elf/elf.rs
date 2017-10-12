@@ -8,10 +8,11 @@ use elf_bindings::*;
 use bpf::*;
 use kernel_version::*;
 use std::io::Error;
+use std::io::ErrorKind;
 use std::default::Default;
 use std::path::PathBuf;
 use std::io::Cursor;
-use bpffs::*;
+use bpffs::{BPFFS_PATH, mounted};
 use pinning::BPFDIRGLOBALS;
 use self::byteorder::LittleEndian;
 use self::byteorder::ReadBytesExt;
@@ -85,6 +86,17 @@ fn bpf_create_map(map_type: bpf_map_type,
 pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {
 }
 
+fn stringify(
+
+fn create_pin_path(path: PathBuf) -> Result<(), String> {
+    mounted()?;
+    let parent = match path.parent() {
+        Some(d) => d,
+        None => return Err(format!("Fail to get parent directory of {}", path)),
+    };
+    fs::create_dir_all(parent).map_err(
+}
+
 fn get_map_path(map_def: &bpf_map_def, map_name: String, pin_path: String) -> Result<PathBuf, String> {
     match map_def.pinning {
         PIN_OBJECT_NS => Err("Not implemented yet"),
@@ -108,16 +120,20 @@ fn get_map_path(map_def: &bpf_map_def, map_name: String, pin_path: String) -> Re
     }
 }
 
-fn valid_map_path(path: PathBuf) -> bool {
+fn validate_map_path(path: PathBuf) -> Result<PathBuf> {
     if !path.starts_with(BPFFS_PATH) {
-        false
+        Error::new(ErrorKind::Other, "path doesn't start with bpffs path")
     } else {
-        path.canonicalize().unwrap()
+        path.canonicalize()
     }
 }
 
 fn create_map_path(map_def: &bpf_map_def, map_name: String, params: SectionParams) -> Result<String, String> {
     map_path = get_map_path(map_def, map_name, params.pin_path)?;
+    
+    if let Err(e) = validate_map_path(map_path) {
+        return Err(format!("invalid path {:?}", map_path))
+    }
 
 }
 
