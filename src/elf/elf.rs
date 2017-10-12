@@ -83,8 +83,18 @@ fn bpf_create_map(map_type: bpf_map_type,
     return ret as i32;
 }
 
-fn bpf_load_map(map_def: bpf_map_def, path: PathBuf) -> bpf_map {
-    
+fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> bpf_map {
+    let map_dev_ = map_def.clone();
+    let map = bpf_map {
+        fd: 1,
+        def: map_dev_,
+    };
+    match map_def->pinning {
+        1 => return 0,
+        2, 3 => {
+
+        }
+    }
 }
 
 pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {

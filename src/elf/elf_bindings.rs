@@ -2,6 +2,7 @@
 
 pub const BUF_SIZE_MAP_NS: ::std::os::raw::c_uint = 256;
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct bpf_map_def {
     pub type_: ::std::os::raw::c_uint,
     pub key_size: ::std::os::raw::c_uint,
@@ -54,6 +55,7 @@ fn bindgen_test_layout_bpf_map_def() {
                 stringify ! ( namespace ) ));
 }
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct bpf_map {
     pub fd: ::std::os::raw::c_int,
     pub def: bpf_map_def,
