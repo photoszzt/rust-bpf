@@ -83,10 +83,16 @@ fn bpf_create_map(map_type: bpf_map_type,
     return ret as i32;
 }
 
+fn bpf_load_map(map_def: bpf_map_def, path: PathBuf) -> bpf_map {
+    
+}
+
 pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {
 }
 
-fn stringify(
+fn stringify(error: Error) -> String {
+    format!("{}", error)
+}
 
 fn create_pin_path(path: PathBuf) -> Result<(), String> {
     mounted()?;
@@ -94,7 +100,7 @@ fn create_pin_path(path: PathBuf) -> Result<(), String> {
         Some(d) => d,
         None => return Err(format!("Fail to get parent directory of {}", path)),
     };
-    fs::create_dir_all(parent).map_err(
+    fs::create_dir_all(parent).map_err(stringify)
 }
 
 fn get_map_path(map_def: &bpf_map_def, map_name: String, pin_path: String) -> Result<PathBuf, String> {
@@ -128,13 +134,14 @@ fn validate_map_path(path: PathBuf) -> Result<PathBuf> {
     }
 }
 
-fn create_map_path(map_def: &bpf_map_def, map_name: String, params: SectionParams) -> Result<String, String> {
+fn create_map_path(map_def: &bpf_map_def, map_name: String, params: SectionParams) -> Result<PathBuf, String> {
     map_path = get_map_path(map_def, map_name, params.pin_path)?;
     
     if let Err(e) = validate_map_path(map_path) {
         return Err(format!("invalid path {:?}", map_path))
     }
-
+    create_pin_path(map_path)?;
+    return Ok(map_path);
 }
 
 impl Module {
@@ -177,6 +184,8 @@ impl Module {
 
             let name = sec.shdr.name.trim_left_matches("maps/");
             let map_def = &*(&sec.data[0] as *const u8 as *const bpf_map_def);
+            let map_path = create_map_path(map_def, name, params[sec.shdr.name])?;
+             
         }
     }
 
