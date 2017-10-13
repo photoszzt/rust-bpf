@@ -4,7 +4,7 @@ pub const BUF_SIZE_MAP_NS: ::std::os::raw::c_uint = 256;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct bpf_map_def {
-    pub type_: ::std::os::raw::c_uint,
+    pub type__: ::std::os::raw::c_uint,
     pub key_size: ::std::os::raw::c_uint,
     pub value_size: ::std::os::raw::c_uint,
     pub max_entries: ::std::os::raw::c_uint,

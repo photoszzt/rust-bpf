@@ -19,11 +19,14 @@ use self::byteorder::ReadBytesExt;
 
 const USE_CURRENT_KERNEL_VERSION : u64 = 0xFFFFFFFE;
 
+#[derive(Debug, Default, Copy)]
 pub struct Module {
     file_name: String,
     file: elf::File,
+    maps: HashMap<String, EbpfMap>,
 }
 
+#[derive(Debug, Display, Default, Copy, Clone)]
 pub enum pin {
     PIN_NONE = 0,
     PIN_OBJECT_NS,
@@ -31,18 +34,32 @@ pub enum pin {
     PIN_CUSTOM_NS,
 }
 
+#[derive(Debug, Default, Copy)]
 pub struct SectionParams {
     perf_ring_buffer_page_count: i32,
     skip_perf_map_initialization: bool,
     pin_path: String,
 }
 
-// represents a ebpf map. 
+// represents a ebpf map.
+#[derive(Default)]
 pub struct EbpfMap {
     name: String,
     m: bpf_map,
+}
 
-    pmufds: Vec<int>,
+impl Default for bpf_map_def {
+    fn default() -> bpf_map_def {
+        bpf_map_def {
+            type_: 0,
+            key_size: 0,
+            value_size: 0,
+            max_entries: 0,
+            map_flags: 0,
+            pinning: 0,
+            namespace: [0; 256],
+        }
+    }
 }
 
 fn bpf_create_map(map_type: bpf_map_type,
@@ -178,7 +195,7 @@ fn validate_map_path(path: PathBuf) -> Result<PathBuf> {
 
 fn create_map_path(map_def: &bpf_map_def, map_name: String, params: SectionParams) -> Result<PathBuf, String> {
     map_path = get_map_path(map_def, map_name, params.pin_path)?;
-    
+
     if let Err(e) = validate_map_path(map_path) {
         return Err(format!("invalid path {:?}", map_path))
     }
@@ -213,7 +230,8 @@ impl Module {
         }
     }
 
-    fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String, >, String> {
+    fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String, EbpfMap>, String> {
+        let mut maps = HashMap::new();
         for sec in &self.file.sections {
             if sec.shdr.name.starts_with("maps/") {
                 continue;
@@ -227,8 +245,17 @@ impl Module {
             let name = sec.shdr.name.trim_left_matches("maps/");
             let map_def = &*(&sec.data[0] as *const u8 as *const bpf_map_def);
             let map_path = create_map_path(map_def, name, params[sec.shdr.name])?;
-            let map = bpf_load_map(map_def, &map_path)?;             
+            let map = bpf_load_map(map_def, &map_path)?;
+            let oldMap = maps.get(name);
+            if oldMap.is_some() {
+                return Err("Duplicate map: {} and {}", oldMap.unwrap().name, name);
+            }
+            maps[name] = EbpfMap {
+                name: name,
+                m: map,
+            };
         }
+        Ok(maps)
     }
 
     pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String>{
@@ -247,5 +274,6 @@ impl Module {
         if version == USE_CURRENT_KERNEL_VERSION {
             let version = current_kernel_version()?;
         }
+        self.maps = self.elf_read_maps(params)?;
     }
 }
