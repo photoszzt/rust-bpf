@@ -113,7 +113,7 @@ pub fn bpf_create_map(map_type: bpf_map_type,
 }
 
 pub fn bpf_load_program(prog_type: bpf_prog_type,
-                        insns: &bpf_insn,
+                        insns: *const bpf_insn,
                         insns_cnt: usize,
                         license: *const char,
                         kern_version: u32,
@@ -244,7 +244,7 @@ pub fn bpf_map_get_next_key(fd: u32,
 }
 
 pub fn bpf_obj_pin(fd: u32,
-                   pathname: *const char) -> usize {
+                   pathname: *const i8) -> usize {
     let attr = bpf_attr::bpf_attr_obj(pathname as u64, fd);
 
 
@@ -255,7 +255,7 @@ pub fn bpf_obj_pin(fd: u32,
     }
 }
 
-pub fn bpf_obj_get(pathname: *const char) -> usize {
+pub fn bpf_obj_get(pathname: *const i8) -> usize {
     let attr = bpf_attr::bpf_attr_obj(pathname as u64, 0);
 
 

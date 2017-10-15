@@ -6,8 +6,13 @@
 extern crate syscall;
 #[macro_use]
 extern crate lazy_static;
+extern crate elf;
+extern crate byteorder;
+extern crate libc;
+extern crate nix;
+
 pub mod bpf_bindings;
 pub mod bcc_bindings;
 pub mod bpf;
-pub mod elf;
+pub mod bcc_elf;
 pub mod bpffs;

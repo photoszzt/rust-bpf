@@ -2,9 +2,9 @@
 
 pub const BUF_SIZE_MAP_NS: ::std::os::raw::c_uint = 256;
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy)]
 pub struct bpf_map_def {
-    pub type__: ::std::os::raw::c_uint,
+    pub type_: ::std::os::raw::c_uint,
     pub key_size: ::std::os::raw::c_uint,
     pub value_size: ::std::os::raw::c_uint,
     pub max_entries: ::std::os::raw::c_uint,
@@ -54,8 +54,11 @@ fn bindgen_test_layout_bpf_map_def() {
                 "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
                 stringify ! ( namespace ) ));
 }
+impl Clone for bpf_map_def {
+    fn clone(&self) -> Self { *self }
+}
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy)]
 pub struct bpf_map {
     pub fd: ::std::os::raw::c_int,
     pub def: bpf_map_def,
@@ -76,4 +79,7 @@ fn bindgen_test_layout_bpf_map() {
                 , 4usize , concat ! (
                 "Alignment of field: " , stringify ! ( bpf_map ) , "::" ,
                 stringify ! ( def ) ));
+}
+impl Clone for bpf_map {
+    fn clone(&self) -> Self { *self }
 }

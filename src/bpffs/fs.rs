@@ -3,7 +3,7 @@ extern crate nix;
 use std::error::Error;
 use self::nix::NixPath;
 
-const BPFFS_PATH: &'static str = "/sys/fs/bpf";
+pub const BPFFS_PATH: &'static str = "/sys/fs/bpf";
 const FSTYPE: &'static str = "bpf";
 
 static FS_MAGIC_BPFFS: i32 = 0xCAFE4A11;

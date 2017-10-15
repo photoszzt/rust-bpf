@@ -49,11 +49,11 @@ fn build_bcc_bindings() {
 
 fn build_elf_elf_bindings() {
     let bindings = bindgen::Builder::default()
-        .header("src/elf/elf.h")
+        .header("src/bcc_elf/elf.h")
         .generate()
         .expect("Unable to generate elf.h bindings");
 
     bindings
-        .write_to_file("./src/elf/elf_bindings.rs")
+        .write_to_file("./src/bcc_elf/elf_bindings.rs")
         .expect("Couldn't write bcc bindings!");
 }
