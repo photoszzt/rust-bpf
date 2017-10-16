@@ -95,69 +95,6 @@ impl bpf_attr {
     }
 }
 
-pub fn bpf_create_map(map_type: bpf_map_type,
-                      key_size: u32,
-                      value_size: u32,
-                      max_entries: u32,
-                      map_flags: u32) -> usize {
-    let attr = bpf_attr::bpf_attr_map_create(map_type as u32,
-                                             key_size,
-                                             value_size,
-                                             max_entries,
-                                             map_flags);
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_MAP_CREATE,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
-    }
-}
-
-pub fn bpf_load_program(prog_type: bpf_prog_type,
-                        insns: *const bpf_insn,
-                        insns_cnt: usize,
-                        license: *const char,
-                        kern_version: u32,
-                        log_buf: &mut Vec<u8>,
-                        log_buf_sz: usize) -> usize {
-    let attr = bpf_attr::bpf_attr_prog_load(
-        prog_type as u32,
-        insns_cnt as u32,
-        insns as *const _ as u64,
-        license as u64,
-        0,
-        0,
-        log_buf.as_mut_ptr() as u64,
-        kern_version,
-    );
-
-    let fd = unsafe {
-        syscall!(BPF, bpf_cmd::BPF_PROG_LOAD,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
-    };
-    if fd >= 0 || log_buf.is_empty() || log_buf_sz == 0 {
-        return fd;
-    }
-
-    let attr = bpf_attr::bpf_attr_prog_load(
-        prog_type as u32,
-        insns_cnt as u32,
-        insns as *const _ as u64,
-        license as u64,
-        1,
-        log_buf_sz as u32,
-        log_buf.as_mut_ptr() as u64,
-        kern_version,
-    );
-
-    log_buf[0] = 0;
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_PROG_LOAD,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
-    }
-}
-
 pub fn bpf_verify_program(prog_type: bpf_prog_type,
                           insns: &bpf_insn,
                           insns_cnt: usize,
