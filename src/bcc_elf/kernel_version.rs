@@ -4,7 +4,6 @@ extern crate nix;
 
 use self::regex::Regex;
 use std::fs::File;
-use std::io;
 use std::str::FromStr;
 use std::io::Read;
 

@@ -1,12 +1,11 @@
 extern crate libc;
 extern crate nix;
 use std::error::Error;
-use self::nix::NixPath;
 
 pub const BPFFS_PATH: &'static str = "/sys/fs/bpf";
 const FSTYPE: &'static str = "bpf";
 
-static FS_MAGIC_BPFFS: i32 = 0xCAFE4A11;
+const FS_MAGIC_BPFFS: i32 = 0xCAFE4A11 as i32;
 const NONE: Option<&'static [u8]> = None;
 
 // IsMounted checks if the BPF fs is mounted already
@@ -27,7 +26,7 @@ pub fn mounted() -> Result<(), String> {
                 if let Err(e) = nix::mount::mount(Some(BPFFS_PATH), BPFFS_PATH, Some(FSTYPE),
                                                   nix::mount::MsFlags::from_bits_truncate(0),
                                                   NONE) {
-                    Err(format!("Cannot mount {}: {}", BPFFS_PATH, e));
+                    Err(format!("Cannot mount {}: {}", BPFFS_PATH, e))
                 } else {
                     Ok(())
                 }

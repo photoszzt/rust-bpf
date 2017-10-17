@@ -3,7 +3,6 @@ extern crate nix;
 extern crate elf;
 
 use bpf_bindings::*;
-use bcc_elf::elf_bindings::*;
 use bpf::*;
 use elf::types::*;
 use bcc_elf::kernel_version::*;
@@ -17,16 +16,41 @@ use bcc_elf::pinning::BPFDIRGLOBALS;
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt};
 use bcc_elf::module::*;
 use std::collections::HashMap;
+use std::path::Path;
 
-const USE_CURRENT_KERNEL_VERSION : u64 = 0xFFFFFFFE;
+const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;
 
-#[derive(Debug, Copy, Clone)]
-pub enum pin {
-    PIN_NONE = 0,
-    PIN_OBJECT_NS,
-    PIN_GLOBAL_NS,
-    PIN_CUSTOM_NS,
+#[repr(C)]
+#[derive(Copy)]
+pub struct bpf_map {
+    pub fd: ::std::os::raw::c_int,
+    pub def: bpf_map_def,
 }
+#[test]
+fn bindgen_test_layout_bpf_map() {
+    assert_eq!(::std::mem::size_of::<bpf_map>() , 284usize , concat ! (
+               "Size of: " , stringify ! ( bpf_map ) ));
+    assert_eq! (::std::mem::align_of::<bpf_map>() , 4usize , concat ! (
+                "Alignment of " , stringify ! ( bpf_map ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map ) ) . fd as * const _ as usize }
+                , 0usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map ) , "::" ,
+                stringify ! ( fd ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map ) ) . def as * const _ as usize }
+                , 4usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map ) , "::" ,
+                stringify ! ( def ) ));
+}
+impl Clone for bpf_map {
+    fn clone(&self) -> Self { *self }
+}
+
+const PIN_NONE: ::std::os::raw::c_uint = 0;
+const PIN_OBJECT_NS: ::std::os::raw::c_uint = 1;
+const PIN_GLOBAL_NS: ::std::os::raw::c_uint = 2;
+const PIN_CUSTOM_NS: ::std::os::raw::c_uint = 3;
 
 #[derive(Debug, Default, Clone)]
 pub struct SectionParams {
@@ -36,10 +60,10 @@ pub struct SectionParams {
 }
 
 // represents a ebpf map.
-#[derive(Default, Clone, Debug)]
+#[derive(Clone)]
 pub struct EbpfMap {
     name: String,
-    m: bpf_map_def,
+    m: bpf_map,
 }
 
 impl Default for bpf_map_def {
@@ -167,18 +191,19 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
     };
     let mut do_pin = false;
     match map_def.pinning {
-        1 => return Err("Not support object pinning".to_string()),
-        2|3 => {
-            if nix::sys::stat::stat().map_err(stringify).is_ok() {
-                let fd = bpf_obj_get(path.to_str().unwrap_or("").as_bytes() as *const libc::c_char);
+        PIN_OBJECT_NS => return Err("Not support object pinning".to_string()),
+        PIN_GLOBAL_NS | PIN_CUSTOM_NS => {
+            if nix::sys::stat::stat(path).map_err(stringify_nix).is_ok() {
+                let fd = bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
                 if fd < 0 {
-                    return Err("Fail to get pinned obj fd");
+                    return Err("Fail to get pinned obj fd".to_string());
                 }
                 map.fd = fd as i32;
                 return Ok(map);
             }
             do_pin = true;
         }
+        _ => panic!("Can't recognize pinning config"),
     }
 
     map.fd = bpf_create_map(map_def.type_, map_def.key_size, map_def.value_size, map_def.max_entries);
@@ -188,7 +213,7 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
     }
 
     if do_pin {
-        let fd = bpf_obj_pin(map.fd as u32, path.to_str().unwrap_or("").as_bytes() as *const libc::c_char);
+        let fd = bpf_obj_pin(map.fd as u32, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
         if fd < 0 {
             return Err("Fail to pin object".to_string());
         }
@@ -200,32 +225,37 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
 pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {
 }
 
-fn stringify(error: Error) -> String {
+fn stringify_stdio(error: Error) -> String {
     format!("{}", error)
 }
 
-fn stringify(nix::error: Error) -> String {
+fn stringify_nix(error: nix::Error) -> String {
     format!("{}", error)
 }
 
-fn create_pin_path(path: PathBuf) -> Result<(), String> {
+fn create_pin_path(path: &Path) -> Result<(), String> {
     mounted()?;
     let parent = match path.parent() {
         Some(d) => d,
         None => return Err(format!("Fail to get parent directory of {:?}", path)),
     };
-    ::std::fs::create_dir_all(parent).map_err(stringify)
+    ::std::fs::create_dir_all(parent).map_err(stringify_stdio)
 }
 
-fn get_map_path(map_def: &bpf_map_def, map_name: String, pin_path: String) -> Result<PathBuf, String> {
+fn get_map_path(map_def: &bpf_map_def, map_name: &str, pin_path: &str) -> Result<PathBuf, String> {
     match map_def.pinning {
         PIN_OBJECT_NS => Err("Not implemented yet".to_string()),
         PIN_GLOBAL_NS => {
-            let namespace = str::from_utf8(&map_def.namespace).map_err(stringify)?;
+            let namespace = unsafe {
+                match ::std::ffi::CStr::from_ptr(map_def.namespace.as_ptr()).to_str() {
+                    Ok(res) => res,
+                    Err(e) => return Err(format!("Fail to convert namespace to valid utf8 str: {}", e)),
+                }
+            };
             if namespace == "" {
                 return Err(format!("map {} has empty namespace", map_name));
             }
-            Ok([BPFFS_PATH, &namespace, BPFDIRGLOBALS, map_name].iter().collect())
+            Ok([BPFFS_PATH, namespace, BPFDIRGLOBALS, map_name].iter().collect())
         }
         PIN_CUSTOM_NS => {
             if pin_path == "" {
@@ -233,14 +263,14 @@ fn get_map_path(map_def: &bpf_map_def, map_name: String, pin_path: String) -> Re
             }
             Ok([BPFFS_PATH, pin_path].iter().collect())
         }
-        default => {
+        _ => {
             // map is not pinned
             Ok(PathBuf::from(""))
         }
     }
 }
 
-fn validate_map_path(path: PathBuf) -> ::std::io::Result<PathBuf> {
+fn validate_map_path(path: &Path) -> ::std::io::Result<PathBuf> {
     if !path.starts_with(BPFFS_PATH) {
         Err(Error::new(ErrorKind::Other, "path doesn't start with bpffs path"))
     } else {
@@ -248,13 +278,14 @@ fn validate_map_path(path: PathBuf) -> ::std::io::Result<PathBuf> {
     }
 }
 
-fn create_map_path(map_def: &bpf_map_def, map_name: String, params: SectionParams) -> Result<PathBuf, String> {
-    let map_path = get_map_path(map_def, map_name, params.pin_path)?;
+fn create_map_path(map_def: &bpf_map_def, map_name: &str, params: &SectionParams)
+                       -> Result<PathBuf, String> {
+    let map_path = get_map_path(map_def, map_name, &params.pin_path)?;
 
-    if let Err(e) = validate_map_path(map_path) {
-        return Err(format!("invalid path {:?}", map_path))
+    if validate_map_path(&map_path).is_err() {
+        return Err(format!("invalid path {:?}", &map_path))
     }
-    create_pin_path(map_path)?;
+    create_pin_path(&map_path)?;
     return Ok(map_path);
 }
 
@@ -286,7 +317,7 @@ impl Module {
     }
 
     fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String, EbpfMap>, String> {
-        let mut maps = HashMap::new();
+        let mut maps: HashMap<String, EbpfMap> = HashMap::new();
         for sec in &self.file.sections {
             if sec.shdr.name.starts_with("maps/") {
                 continue;
@@ -298,17 +329,18 @@ impl Module {
             }
 
             let name = sec.shdr.name.trim_left_matches("maps/");
-            let map_def = &*(&sec.data[0] as *const u8 as *const bpf_map_def);
-            let map_path = create_map_path(map_def, name, params[sec.shdr.name])?;
-            let map = bpf_load_map(map_def, &map_path)?;
-            let oldMap = maps.get(name);
-            if oldMap.is_some() {
-                return Err("Duplicate map: {} and {}", oldMap.unwrap().name, name);
-            }
-            maps[name] = EbpfMap {
-                name: name,
-                m: map,
+            let map_def = unsafe {
+                &*(&sec.data[0] as *const u8 as *const bpf_map_def)
             };
+            let map_path = create_map_path(map_def, name, &params[&sec.shdr.name])?;
+            let map = bpf_load_map(map_def, &map_path)?;
+            if let Some(oldMap) = maps.get(name) {
+                return Err(format!("Duplicate map: {} and {}", oldMap.name, name));
+            }
+            maps.insert(name.to_string(), EbpfMap {
+                name: name.to_string(),
+                m: map,
+            });
         }
         Ok(maps)
     }
@@ -318,66 +350,71 @@ impl Module {
             Some(s) => s,
             None => return Err("Fail to get symbol table".to_string()),
         };
-        let symbols = self.file.get_symbols(&symtab_sec).map_err(stringify)?;
+        let symbols = match self.file.get_symbols(&symtab_sec) {
+            Ok(res) => res,
+            Err(e) => return Err(format!("Fail to get symbols from symbol table sections: {:?}", e)),
+        };
         loop {
             let (symbol, offset) = match self.file.ehdr.class {
                 ELFCLASS64 => {
                     let mut buf = Cursor::new(data);
                     match self.file.ehdr.data {
                         ELFDATA2LSB => {
-                            let off = buf.read_u64::<LittleEndian>().map_err(stringify)?;
-                            let info = buf.read_u64::<LittleEndian>().map_err(stringify)?;
+                            let off = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
+                            let info = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 32;
-                            Ok((symbols[sym_no-1], off))
+                            (symbols[(sym_no - 1) as usize].clone(), off)
                         },
                         ELFDATA2MSB => {
-                            let off = buf.read_u64::<BigEndian>().map_err(stringify)?;
-                            let info = buf.read_u64::<BigEndian>().map_err(stringify)?;
+                            let off = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
+                            let info = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 32;
-                            Ok((symbols[sym_no-1], off))
+                            (symbols[(sym_no - 1) as usize].clone(), off)
                         },
-                        _ => Err("invalid endian".to_string()),
+                        _ => panic!("Unrecognize endian encoding"),
                     }
                 }
                 ELFCLASS32 => {
                     let mut buf = Cursor::new(data);
                     match self.file.ehdr.data {
                         ELFDATA2LSB => {
-                            let off = buf.read_u32::<LittleEndian>().map_err(stringify)?;
-                            let info = buf.read_u32::<LittleEndian>().map_err(stringify)?;
+                            let off = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
+                            let info = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 8;
-                            Ok((symbols[sym_no-1], off as u64))
+                            (symbols[(sym_no - 1) as usize].clone(), off as u64)
                         },
                         ELFDATA2MSB => {
-                            let off = buf.read_u32::<BigEndian>().map_err(stringify)?;
-                            let info = buf.read_u32::<BigEndian>().map_err(stringify)?;
+                            let off = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
+                            let info = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 8;
-                            Ok((symbols[sym_no-1], off as u64))
+                            (symbols[(sym_no - 1) as usize].clone(), off as u64)
                         },
-                        _ => Err("invalid endian".to_string())
+                        _ => panic!("Unrecognize endian encoding"),
                     }
                 }
-                _ => Err("elf file class".to_string()),
-            }?;
-            let mut rinsn = &*(&rdata[offset] as *const u8 as *const bpf_insn);
-            if rinsn.code != (BPF_LD | BPF_IMM | BPF_DW) {
-                let symbol_sec = self.file.sections[symbol.shndx];
+                _ => panic!("Unrecognize elf class"),
+            };
+            let rinsn = unsafe {
+                &mut *(&rdata[offset as usize] as *const u8 as *const bpf_insn as *mut bpf_insn)
+            };
+            if rinsn.code != (BPF_LD | BPF_IMM | BPF_DW) as u8 {
+                let symbol_sec = &self.file.sections[symbol.shndx as usize];
                 return Err(format!("invalid relocation: symbol name={}\nsymbol section: Name={}, Type={}, Flags={}",
-                                   symbol.name, symbol_sec.name, symbol_sec.shdr.shtype, symbol_sec.shdr.flags));
+                                   symbol.name, symbol_sec.shdr.name, symbol_sec.shdr.shtype, symbol_sec.shdr.flags));
             }
 
-            let symbol_sec = self.file.sections[symbol.shndx];
-            if !symbol_sec.name.starts_with("maps/") {
+            let symbol_sec = &self.file.sections[symbol.shndx as usize];
+            if !symbol_sec.shdr.name.starts_with("maps/") {
                 return Err(format!("map location not supported: map {} is in section {} instead of \"maps/{}\"",
-                                   symbol.name, symbol_sec.name, symbol.name));
+                                   symbol.name, symbol_sec.shdr.name, symbol.name));
             }
             let name = symbol_sec.shdr.name.trim_left_matches("maps/");
-            let m = match self.maps[name] {
+            let m = match self.maps.get(name) {
                 Some(res) => res,
                 None => return Err(format!("relocation error, symbol {} not found in section {}",
                                            symbol.name, symbol_sec.shdr.name))
             };
-            rinsn.src_reg = BPF_PSEUDO_MAP_FD;
+            rinsn.set_src_reg(BPF_PSEUDO_MAP_FD as u8);
             rinsn.imm = m.m.fd;
         }
     }
@@ -387,35 +424,37 @@ impl Module {
             let path = PathBuf::from(&self.file_name);
             self.file = match elf::File::open_path(&path) {
                 Ok(f) => f,
-                Err(e) => panic!("Fail to open file: {}", &self.file_name),
+                Err(_) => panic!("Fail to open file: {}", &self.file_name),
             };
         }
 
         let license = self.elf_read_license()?;
 
-        let version = self.elf_read_version()?;
-
-        if version == USE_CURRENT_KERNEL_VERSION {
-            let version = current_kernel_version()?;
-        }
+        let version = {
+            let mut v = self.elf_read_version()?;
+            if v == USE_CURRENT_KERNEL_VERSION {
+                v = current_kernel_version()?;
+            }
+            v
+        };
         self.maps = self.elf_read_maps(params)?;
 
-        let processed = vec![false; self.file.sections.len()];
+        let mut processed = vec![false; self.file.sections.len()];
         for (idx, sec) in self.file.sections.iter().enumerate() {
             if processed[idx] {
                 continue
             }
 
-            let data = sec.data;
+            let data = &sec.data;
             if data.is_empty() {
                 continue;
             }
 
             if sec.shdr.shtype == SHT_REL {
-                let rsec = self.file.sections[sec.shdr.info];
+                let rsec = &self.file.sections[sec.shdr.info as usize];
                 processed[idx] = true;
-                processed[sec.shdr.info as i32] = true;
-                let sec_name = rsec.shdr.name;
+                processed[sec.shdr.info as usize] = true;
+                let sec_name = &rsec.shdr.name;
                 let is_kprobe = sec_name.starts_with("kprobe/");
                 let is_kretprobe = sec_name.starts_with("kretprobe/");
                 let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
@@ -440,7 +479,7 @@ impl Module {
                 };
 
                 if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint {
-                    let rdata = rsec.data();
+                    let rdata = &rsec.data;
                     if rdata.len() == 0 {
                         continue
                     }
@@ -448,39 +487,39 @@ impl Module {
                     self.relocate(data, rdata)?;
 
                     let insns = &rdata[0] as *const u8 as *const bpf_insn;
-                    let prog_fd = bpf_prog_load(progType, insns, rsec.shdr.size,
+                    let prog_fd = bpf_prog_load(progType, insns, rsec.shdr.size as u32,
                                                 license.as_ptr() as *const u8,
-                                                version, self.log.as_ptr() as *const u8, self.log.len());
+                                                version, self.log.as_ptr() as *const u8, self.log.len() as u32);
                     if prog_fd < 0 {
                         return Err(format!("error while loading {}: \n{}",
-                                           sec_name, String::from_utf8(self.log).unwrap()));
+                                           sec_name, ::std::str::from_utf8(&self.log).unwrap()));
                     }
                     if is_kprobe || is_kretprobe {
-                        self.probes[&sec_name] = Kprobe {
-                            name: sec_name,
+                        self.probes.insert(sec_name.to_string(), Kprobe {
+                            name: sec_name.to_string(),
                             insns: insns as usize,
-                            fd: prog_fd as i32,
+                            fd: prog_fd,
                             efd: -1
-                        };
+                        });
                     } else if is_cgroup_sock || is_cgroup_skb {
-                        self.cgroup_programs[&sec_name] = CgroupProgram {
-                            name: sec_name,
+                        self.cgroup_programs.insert(sec_name.to_string(), CgroupProgram {
+                            name: sec_name.to_string(),
                             insns: insns as usize,
-                            fd: prog_fd as i32,
-                        }
+                            fd: prog_fd,
+                        });
                     } else if is_socket_filter {
-                        self.socket_filters[&sec_name] = SocketFilter {
-                            name: sec_name,
+                        self.socket_filters.insert(sec_name.to_string(), SocketFilter {
+                            name: sec_name.to_string(),
                             insns: insns as usize,
-                            fd: prog_fd as i32,
-                        }
+                            fd: prog_fd,
+                        });
                     } else if is_tracepoint {
-                        self.tracepoint_programs[&sec_name] = TracepointProgram {
-                            name: sec_name,
+                        self.tracepoint_programs.insert(sec_name.to_string(), TracepointProgram {
+                            name: sec_name.to_string(),
                             insns: insns as usize,
-                            fd: prog_fd as i32,
+                            fd: prog_fd,
                             efd: -1,
-                        }
+                        });
                     }
                 }
             }
@@ -491,7 +530,7 @@ impl Module {
                 continue
             }
 
-            let sec_name = sec.shdr.name;
+            let sec_name = &sec.shdr.name;
             let is_kprobe = sec_name.starts_with("kprobe/");
             let is_kretprobe = sec_name.starts_with("kretprobe/");
             let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
@@ -516,7 +555,7 @@ impl Module {
             };
 
             if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint {
-                let data = sec.data;
+                let data = &sec.data;
                 if data.len() == 0 {
                     continue
                 }
@@ -524,39 +563,41 @@ impl Module {
                 let insns = &data[0] as *const u8 as *const bpf_insn;
                 let prog_fd = bpf_prog_load(progType, insns, sec.shdr.size as u32,
                                             license.as_ptr() as *const u8,
-                                            version, self.log.as_ptr() as *const u8, self.log.len());
+                                            version, self.log.as_ptr() as *const u8, self.log.len() as u32);
                 if prog_fd < 0 {
-                    return Err("error while loading {}: \n{}", sec_name, String::from_utf8(self.log).unwrap());
+                    return Err(format!("error while loading {}: \n{}",
+                                       sec_name, ::std::str::from_utf8(&self.log).unwrap()));
                 }
                 if is_kprobe || is_kretprobe {
-                    self.probes[&sec_name] = Kprobe {
-                        name: sec_name,
+                    self.probes.insert(sec_name.to_string(), Kprobe {
+                        name: sec_name.to_string(),
                         insns: insns as usize,
-                        fd: prog_fd as i32,
+                        fd: prog_fd,
                         efd: -1
-                    };
+                    });
                 } else if is_cgroup_sock || is_cgroup_skb {
-                    self.cgroup_programs[&sec_name] = CgroupProgram {
-                        name: sec_name,
+                    self.cgroup_programs.insert(sec_name.to_string(), CgroupProgram {
+                        name: sec_name.to_string(),
                         insns: insns as usize,
-                        fd: prog_fd as i32,
-                    }
+                        fd: prog_fd,
+                    });
                 } else if is_socket_filter {
-                    self.socket_filters[&sec_name] = SocketFilter {
-                        name: sec_name,
+                    self.socket_filters.insert(sec_name.to_string(), SocketFilter {
+                        name: sec_name.to_string(),
                         insns: insns as usize,
-                        fd: prog_fd as i32,
-                    }
+                        fd: prog_fd,
+                    });
                 } else if is_tracepoint {
-                    self.tracepoint_programs[&sec_name] = TracepointProgram {
-                        name: sec_name,
+                    self.tracepoint_programs.insert(sec_name.to_string(), TracepointProgram {
+                        name: sec_name.to_string(),
                         insns: insns as usize,
-                        fd: prog_fd as i32,
+                        fd: prog_fd,
                         efd: -1,
-                    }
+                    });
                 }
             }
         }
+        Ok(())
     }
 
     fn initialize_perf_maps(&self, params: &HashMap<String, SectionParams>) {

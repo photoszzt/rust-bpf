@@ -96,7 +96,7 @@ impl bpf_attr {
 }
 
 pub fn bpf_verify_program(prog_type: bpf_prog_type,
-                          insns: &bpf_insn,
+                          insns: u64,
                           insns_cnt: usize,
                           license: *const char,
                           kern_version: u32,
@@ -106,7 +106,7 @@ pub fn bpf_verify_program(prog_type: bpf_prog_type,
     let attr = bpf_attr::bpf_attr_prog_load(
         prog_type as u32,
         insns_cnt as u32,
-        insns as *const _ as u64,
+        insns,
         license as u64,
         log_level,
         log_buf_sz as u32,
@@ -181,25 +181,25 @@ pub fn bpf_map_get_next_key(fd: u32,
 }
 
 pub fn bpf_obj_pin(fd: u32,
-                   pathname: *const i8) -> usize {
+                   pathname: *const u8) -> i32 {
     let attr = bpf_attr::bpf_attr_obj(pathname as u64, fd);
 
 
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_OBJ_PIN,
                  &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
 
-pub fn bpf_obj_get(pathname: *const i8) -> usize {
+pub fn bpf_obj_get(pathname: *const u8) -> i32 {
     let attr = bpf_attr::bpf_attr_obj(pathname as u64, 0);
 
 
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_OBJ_GET,
                  &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
 

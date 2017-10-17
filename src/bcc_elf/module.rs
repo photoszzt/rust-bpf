@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs::File;
 use bpf_bindings::*;
 use elf;
 use bcc_elf::elf::EbpfMap;
@@ -17,36 +16,30 @@ pub struct Module {
 
 #[derive(Debug, Default, Clone)]
 pub struct Kprobe {
-    name: String,
-    insns: usize,
-    fd: i32,
-    efd: i32,
+    pub name: String,
+    pub insns: usize,
+    pub fd: i32,
+    pub efd: i32,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct CgroupProgram {
-    name: String,
-    insns: usize,
-    fd: i32,
+    pub name: String,
+    pub insns: usize,
+    pub fd: i32,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct SocketFilter {
-    name: String,
-    insns: usize,
-    fd: i32,
+    pub name: String,
+    pub insns: usize,
+    pub fd: i32,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct TracepointProgram {
-    name: String,
-    insns: usize,
-    fd: i32,
-    efd: i32,
-}
-
-impl Module {
-    pub fn new_module() -> Module {
-        Default::default()
-    }
+    pub name: String,
+    pub insns: usize,
+    pub fd: i32,
+    pub efd: i32,
 }

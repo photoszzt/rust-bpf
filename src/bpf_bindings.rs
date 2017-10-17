@@ -78,6 +78,7 @@ pub const BPF_F_INDEX_MASK: ::std::os::raw::c_uint = 4294967295;
 pub const BPF_F_CURRENT_CPU: ::std::os::raw::c_uint = 4294967295;
 pub const BPF_F_CTXLEN_MASK: ::std::os::raw::c_ulonglong = 4503595332403200;
 pub const XDP_PACKET_HEADROOM: ::std::os::raw::c_uint = 256;
+pub const BUF_SIZE_MAP_NS: ::std::os::raw::c_uint = 256;
 pub type __s8 = ::std::os::raw::c_schar;
 pub type __u8 = ::std::os::raw::c_uchar;
 pub type __s16 = ::std::os::raw::c_short;
@@ -1174,4 +1175,68 @@ fn bindgen_test_layout_xdp_md() {
 }
 impl Clone for xdp_md {
     fn clone(&self) -> Self { *self }
+}
+#[repr(C)]
+#[derive(Copy)]
+pub struct bpf_map_def {
+    pub type_: ::std::os::raw::c_uint,
+    pub key_size: ::std::os::raw::c_uint,
+    pub value_size: ::std::os::raw::c_uint,
+    pub max_entries: ::std::os::raw::c_uint,
+    pub map_flags: ::std::os::raw::c_uint,
+    pub pinning: ::std::os::raw::c_uint,
+    pub namespace: [::std::os::raw::c_char; 256usize],
+}
+#[test]
+fn bindgen_test_layout_bpf_map_def() {
+    assert_eq!(::std::mem::size_of::<bpf_map_def>() , 280usize , concat ! (
+               "Size of: " , stringify ! ( bpf_map_def ) ));
+    assert_eq! (::std::mem::align_of::<bpf_map_def>() , 4usize , concat ! (
+                "Alignment of " , stringify ! ( bpf_map_def ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map_def ) ) . type_ as * const _ as
+                usize } , 0usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
+                stringify ! ( type_ ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map_def ) ) . key_size as * const _
+                as usize } , 4usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
+                stringify ! ( key_size ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map_def ) ) . value_size as * const _
+                as usize } , 8usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
+                stringify ! ( value_size ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map_def ) ) . max_entries as * const
+                _ as usize } , 12usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
+                stringify ! ( max_entries ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map_def ) ) . map_flags as * const _
+                as usize } , 16usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
+                stringify ! ( map_flags ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map_def ) ) . pinning as * const _ as
+                usize } , 20usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
+                stringify ! ( pinning ) ));
+    assert_eq! (unsafe {
+                & ( * ( 0 as * const bpf_map_def ) ) . namespace as * const _
+                as usize } , 24usize , concat ! (
+                "Alignment of field: " , stringify ! ( bpf_map_def ) , "::" ,
+                stringify ! ( namespace ) ));
+}
+impl Clone for bpf_map_def {
+    fn clone(&self) -> Self { *self }
+}
+#[repr(u32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum bpf_pin_type {
+    PIN_NONE = 0,
+    PIN_OBJECT_NS = 1,
+    PIN_GLOBAL_NS = 2,
+    PIN_CUSTOM_NS = 3,
 }

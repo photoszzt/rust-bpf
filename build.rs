@@ -3,7 +3,6 @@ extern crate bindgen;
 fn main() {
     build_ebpf_bindings();
     build_bcc_bindings();
-    build_elf_elf_bindings();
 }
 
 fn build_ebpf_bindings() {
@@ -44,16 +43,5 @@ fn build_bcc_bindings() {
 
     bindings
         .write_to_file("./src/bcc_bindings.rs")
-        .expect("Couldn't write bcc bindings!");
-}
-
-fn build_elf_elf_bindings() {
-    let bindings = bindgen::Builder::default()
-        .header("src/bcc_elf/elf.h")
-        .generate()
-        .expect("Unable to generate elf.h bindings");
-
-    bindings
-        .write_to_file("./src/bcc_elf/elf_bindings.rs")
         .expect("Couldn't write bcc bindings!");
 }
