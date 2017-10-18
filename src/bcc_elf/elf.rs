@@ -64,6 +64,9 @@ pub struct SectionParams {
 pub struct EbpfMap {
     name: String,
     m: bpf_map,
+    page_count: u32,
+    headers: usize,
+    pmu_fds: Vec<i32>,
 }
 
 impl Default for bpf_map_def {
@@ -330,7 +333,12 @@ impl Module {
 
             let name = sec.shdr.name.trim_left_matches("maps/");
             let map_def = unsafe {
-                &*(&sec.data[0] as *const u8 as *const bpf_map_def)
+                let map_def_ptr = (&sec.data[0] as *const u8 as *const bpf_map_def);
+                if map_def_ptr.is_null() {
+                    continue;
+                } else {
+                    &*map_def_ptr
+                }
             };
             let map_path = create_map_path(map_def, name, &params[&sec.shdr.name])?;
             let map = bpf_load_map(map_def, &map_path)?;
@@ -600,6 +608,31 @@ impl Module {
         Ok(())
     }
 
-    fn initialize_perf_maps(&self, params: &HashMap<String, SectionParams>) {
+    fn initialize_perf_maps(&self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
+        for (name, m) in self.maps {
+            if m.m.def.type_ != bpf_map_type::BPF_MAP_TYPE_PERF_EVENT_ARRAY {
+                continue;
+            }
+
+            let pg_size = match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE).map_err(stringify_nix)? {
+                Some(res) => res,
+                None => return Err("Fail to get page size".to_string()),
+            };
+            self.maps[name].page_count = 8;
+
+            let sec_name = format!("maps/{}", name);
+            if let Some(param) = params.get(sec_name) {
+                if param.skip_perf_map_initialization {
+                    continue;
+                }
+                if param.perf_ring_buffer_page_count > 0 {
+                    if param.perf_ring_buffer_page_count & (param.perf_ring_buffer_page_count - 1) != 0 {
+                        return Err(format!("number of pages {} must be strictly positive and a power of 2",
+                                           param.perf_ring_buffer_page_count));
+                    }
+                    self.maps[name].page_count = param.perf_ring_buffer_page_count;
+                }
+            }
+        }
     }
 }
