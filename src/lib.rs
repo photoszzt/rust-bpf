@@ -13,6 +13,8 @@ extern crate nix;
 
 pub mod bpf_bindings;
 pub mod bcc_bindings;
+pub mod perf_event_bindings;
 pub mod bpf;
-pub mod bcc_elf;
 pub mod bpffs;
+pub mod cpuonline;
+pub mod bcc_elf;

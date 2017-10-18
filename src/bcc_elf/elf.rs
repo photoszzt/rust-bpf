@@ -12,6 +12,7 @@ use std::default::Default;
 use std::path::PathBuf;
 use std::io::Cursor;
 use bpffs::fs::{BPFFS_PATH, mounted};
+use cpuonline;
 use bcc_elf::pinning::BPFDIRGLOBALS;
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt};
 use bcc_elf::module::*;
@@ -333,7 +334,7 @@ impl Module {
 
             let name = sec.shdr.name.trim_left_matches("maps/");
             let map_def = unsafe {
-                let map_def_ptr = (&sec.data[0] as *const u8 as *const bpf_map_def);
+                let map_def_ptr = &sec.data[0] as *const u8 as *const bpf_map_def;
                 if map_def_ptr.is_null() {
                     continue;
                 } else {
@@ -348,6 +349,9 @@ impl Module {
             maps.insert(name.to_string(), EbpfMap {
                 name: name.to_string(),
                 m: map,
+                headers: 0,
+                page_count: 0,
+                pmu_fds: Vec::new(),
             });
         }
         Ok(maps)
@@ -608,9 +612,13 @@ impl Module {
         Ok(())
     }
 
-    fn initialize_perf_maps(&self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
-        for (name, m) in self.maps {
-            if m.m.def.type_ != bpf_map_type::BPF_MAP_TYPE_PERF_EVENT_ARRAY {
+    fn perf_event_open_map() {
+        
+    }
+
+    fn initialize_perf_maps(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
+        for (name, m) in self.maps.iter_mut() {
+            if m.m.def.type_ != bpf_map_type::BPF_MAP_TYPE_PERF_EVENT_ARRAY as u32 {
                 continue;
             }
 
@@ -618,10 +626,10 @@ impl Module {
                 Some(res) => res,
                 None => return Err("Fail to get page size".to_string()),
             };
-            self.maps[name].page_count = 8;
+            m.page_count = 8; // reasonable default
 
             let sec_name = format!("maps/{}", name);
-            if let Some(param) = params.get(sec_name) {
+            if let Some(param) = params.get(&sec_name) {
                 if param.skip_perf_map_initialization {
                     continue;
                 }
@@ -630,9 +638,15 @@ impl Module {
                         return Err(format!("number of pages {} must be strictly positive and a power of 2",
                                            param.perf_ring_buffer_page_count));
                     }
-                    self.maps[name].page_count = param.perf_ring_buffer_page_count;
+                    m.page_count = param.perf_ring_buffer_page_count as u32;
                 }
             }
+            let cpus = cpuonline::cpuonline::get()?;
+
+            for cpu in &cpus {
+                
+            }
         }
+        Ok(())
     }
 }

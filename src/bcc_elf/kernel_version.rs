@@ -14,7 +14,10 @@ lazy_static! {
 }
 
 fn kernel_version_from_release_string(release_str: &str) -> Result<u32, String> {
-    let versionParts = VERSION_REGEX.captures(release_str).unwrap();
+    let versionParts = match VERSION_REGEX.captures(release_str) {
+        Some(r) => r,
+        None => return Err("Fail to find version from strings".to_string()),
+    };
     if versionParts.len() != 4 {
         return Err(format!("got invalid release version {} (expected format '4.3.2-1')", release_str));
     }
@@ -102,12 +105,13 @@ mod tests {
     }
     #[test]
     fn test_kernel_version_from_release_string() {
-        test.iter().map(|t| {
+        for i in 0..test.len() {
+            let t = &test[i];
             let res = kernel_version_from_release_string(t.release_string);
-            assert!(t.succeed && res.is_ok() || !t.succeed && res.is_err());
+            assert!((t.succeed && res.is_ok()) || (!t.succeed && res.is_err()));
             if let Ok(v) = res {
                 assert_eq!(v, t.kernel_version)
             }
-        });
+        }
     }
 }

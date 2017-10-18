@@ -1,11 +1,11 @@
 extern crate bindgen;
 
 fn main() {
-    build_ebpf_bindings();
+    build_ebpf_perf_bindings();
     build_bcc_bindings();
 }
 
-fn build_ebpf_bindings() {
+fn build_ebpf_perf_bindings() {
     // Get kernel header location from STD_KERNEL_PATH variable supplied by Makefile
     let std_kernel_path = match std::env::var("STD_KERNEL_PATH") {
         Ok(string) => string,
@@ -22,12 +22,22 @@ fn build_ebpf_bindings() {
     // Generate bindings for headers listed in kernel-wrapper.h
     let bindings = bindgen::Builder::default()
         .header("bpf.h")
-        .clang_arg(clang_arg)
+        .clang_arg(clang_arg.clone())
         .generate()
-        .expect("Unable to generate kernel bindings");
+        .expect("Unable to generate bpf.h bindings");
 
     bindings
         .write_to_file("./src/bpf_bindings.rs")
+        .expect("Couldn't write kernel bindings!");
+
+    let bindings = bindgen::Builder::default()
+        .header("/usr/include/linux/perf_event.h")
+        .clang_arg(clang_arg)
+        .generate()
+        .expect("Unable to generate perf_event.h bindings");
+
+    bindings
+        .write_to_file("./src/perf_event_bindings.rs")
         .expect("Couldn't write kernel bindings!");
 }
 
