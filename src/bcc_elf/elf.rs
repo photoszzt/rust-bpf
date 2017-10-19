@@ -20,10 +20,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use perf_event_bindings::{perf_event_attr, perf_type_id, perf_event_sample_format, perf_sw_ids,
                           PERF_FLAG_FD_CLOEXEC, perf_event_mmap_page};
+use perf_event::PERF_EVENT_IOC_ENABLE;
 
 const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;
 
-pub const PERF_EVENT_IOC_ENABLE: u64 = 9216;
 
 #[repr(C)]
 #[derive(Copy, Default)]
@@ -287,11 +287,11 @@ fn create_map_path(map_def: &bpf_map_def, map_name: &str, params: &SectionParams
 
 fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
     let attr: perf_event_attr =
-        perf_event_attr::gen_perf_event_attr(perf_type_id::PERF_TYPE_SOFTWARE,
-                                             perf_event_sample_format::PERF_SAMPLE_RAW,
-                                             1,
-                                             ::std::mem::size_of::<perf_event_attr>() as u32,
-                                             perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT as u64);
+        perf_event_attr::gen_perf_event_attr_open_map(perf_type_id::PERF_TYPE_SOFTWARE,
+                                                      perf_event_sample_format::PERF_SAMPLE_RAW,
+                                                      1,
+                                                      ::std::mem::size_of::<perf_event_attr>() as u32,
+                                                      perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT as u64);
     unsafe {
         syscall!(PERF_EVENT_OPEN,
                  &attr as *const _ as usize,
