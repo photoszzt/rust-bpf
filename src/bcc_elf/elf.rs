@@ -18,6 +18,8 @@ use byteorder::{LittleEndian, BigEndian, ReadBytesExt};
 use bcc_elf::module::*;
 use std::collections::HashMap;
 use std::path::Path;
+use perf_event_bindings::{perf_event_attr, perf_type_id, perf_event_sample_format, perf_sw_ids,
+                          PERF_FLAG_FD_CLOEXEC};
 
 const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;
 
@@ -82,6 +84,10 @@ impl Default for bpf_map_def {
             namespace: [0; 256],
         }
     }
+}
+
+impl perf_event_attr {
+    
 }
 
 fn bpf_create_map(map_type: u32,
@@ -612,8 +618,16 @@ impl Module {
         Ok(())
     }
 
-    fn perf_event_open_map() {
-        
+    fn perf_event_open_map(pid: i32, cpu: i32, groupd_fd: i32, flags: u64) -> i32 {
+        let attr: perf_event_attr =
+            perf_event_attr::gen_perf_event_attr(perf_type_id::PERF_TYPE_SOFTWARE,
+                                                 perf_event_sample_format::PERF_SAMPLE_RAW,
+                                                 1,
+                                                 ::std::mem::size_of::<perf_event_attr>(),
+                                                 perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT);
+        syscall!(PERF_EVENT_OPEN,
+                 &attr as *const _ as usize,
+                 pid, cpu, group_fd, flags) as i32
     }
 
     fn initialize_perf_maps(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
@@ -644,7 +658,21 @@ impl Module {
             let cpus = cpuonline::cpuonline::get()?;
 
             for cpu in &cpus {
-                
+                let pmufd = perf_event_open_map(-1, cpu, -1, PERF_FLAG_FD_CLOEXEC);
+                if pmufd < 0 {
+                    return Err("Fail to call perf_event_open".to_string());
+                }
+
+                let mmap_size = pg_size * (m.page_count + 1);
+
+                let base = unsafe {
+                    nix::sys::mmap::mmap(::std::ptr::null_mut(), mmap_size,
+                                         nix::sys::mman::PROT_READ|nix::sys::mman::PROT_WRITE,
+                                         nix::sys::mman::MAP_SHARED, pmufd, 0)
+                        .map_err(|e| format!("Fail to mmap: {}", e))?
+                };
+
+
             }
         }
         Ok(())
