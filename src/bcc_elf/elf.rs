@@ -672,6 +672,9 @@ impl Module {
                         .map_err(|e| format!("Fail to mmap: {}", e))?
                 };
 
+                let ret = unsafe {
+                    syscall!(IOCTL, pmufd, PERF_EVENT_IOC_ENABLE, 0)
+                };
 
             }
         }
