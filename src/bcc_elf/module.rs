@@ -12,6 +12,7 @@ pub struct Module {
     pub cgroup_programs: HashMap<String, CgroupProgram>,
     pub socket_filters: HashMap<String, SocketFilter>,
     pub tracepoint_programs: HashMap<String, TracepointProgram>,
+    pub sched_programs: HashMap<String, SchedProgram>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -42,4 +43,11 @@ pub struct TracepointProgram {
     pub insns: usize,
     pub fd: i32,
     pub efd: i32,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct SchedProgram {
+    pub name: String,
+    pub insns: usize,
+    pub fd: i32,
 }

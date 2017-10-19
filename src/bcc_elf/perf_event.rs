@@ -39,16 +39,16 @@ impl perf_event_attr {
                                sample_type: perf_event_sample_format,
                                wakeup_events: u32,
                                size: u32,
-                               config: u32) -> perf_event_attr {
+                               config: u64) -> perf_event_attr {
         perf_event_attr {
             type_: perf_type as u32,
             size: size,
             config: config,
-            sample_type: sample_type,
+            sample_type: sample_type as u64,
             __bindgen_anon_2: perf_event_attr__bindgen_ty_2 {
                 wakeup_events: wakeup_events,
             },
-            ..Default::default(),
+            ..Default::default()
         }
     }
 }

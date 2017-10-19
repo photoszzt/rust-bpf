@@ -128,9 +128,9 @@ pub fn bpf_map_update_elem(fd: u32,
                            value: *mut c_void,
                            flags: u64) -> usize {
     let attr = bpf_attr::bpf_attr_elem_value(fd,
-                                        key as u64,
-                                        value as u64,
-                                        flags);
+                                             key as u64,
+                                             value as u64,
+                                             flags);
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_MAP_UPDATE_ELEM,
                  &attr as *const _ as usize,

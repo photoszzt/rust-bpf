@@ -19,12 +19,14 @@ use bcc_elf::module::*;
 use std::collections::HashMap;
 use std::path::Path;
 use perf_event_bindings::{perf_event_attr, perf_type_id, perf_event_sample_format, perf_sw_ids,
-                          PERF_FLAG_FD_CLOEXEC};
+                          PERF_FLAG_FD_CLOEXEC, perf_event_mmap_page};
 
 const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;
 
+pub const PERF_EVENT_IOC_ENABLE: u64 = 9216;
+
 #[repr(C)]
-#[derive(Copy)]
+#[derive(Copy, Default)]
 pub struct bpf_map {
     pub fd: ::std::os::raw::c_int,
     pub def: bpf_map_def,
@@ -68,7 +70,7 @@ pub struct EbpfMap {
     name: String,
     m: bpf_map,
     page_count: u32,
-    headers: usize,
+    headers: Vec<*mut perf_event_mmap_page>,
     pmu_fds: Vec<i32>,
 }
 
@@ -84,10 +86,6 @@ impl Default for bpf_map_def {
             namespace: [0; 256],
         }
     }
-}
-
-impl perf_event_attr {
-    
 }
 
 fn bpf_create_map(map_type: u32,
@@ -199,47 +197,35 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
         fd: 1,
         def: map_dev_,
     };
-    let mut do_pin = false;
-    match map_def.pinning {
-        PIN_OBJECT_NS => return Err("Not support object pinning".to_string()),
-        PIN_GLOBAL_NS | PIN_CUSTOM_NS => {
-            if nix::sys::stat::stat(path).map_err(stringify_nix).is_ok() {
-                let fd = bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
-                if fd < 0 {
-                    return Err("Fail to get pinned obj fd".to_string());
-                }
-                map.fd = fd as i32;
-                return Ok(map);
+    if map_def.pinning == PIN_OBJECT_NS {
+        return Err("Not support object pinning".to_string());
+    } else if map_def.pinning == PIN_GLOBAL_NS || map_def.pinning == PIN_CUSTOM_NS {
+        if nix::sys::stat::stat(path).map_err(|e| format!("Stat fail: {}", e)).is_ok() {
+            let fd = bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
+            if fd < 0 {
+                return Err("Fail to get pinned obj fd".to_string());
             }
-            do_pin = true;
+            map.fd = fd as i32;
+            return Ok(map);
+        } else {
+            map.fd = bpf_create_map(map_def.type_, map_def.key_size, map_def.value_size, map_def.max_entries);
+
+            if map.fd < 0 {
+                return Err("Fail to create map".to_string());
+            }
+
+            let fd = bpf_obj_pin(map.fd as u32, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
+            if fd < 0 {
+                return Err("Fail to pin object".to_string());
+            }
+            Ok(map)
         }
-        _ => panic!("Can't recognize pinning config"),
+    } else {
+        return Err("Can't recognize pinning config".to_string());
     }
-
-    map.fd = bpf_create_map(map_def.type_, map_def.key_size, map_def.value_size, map_def.max_entries);
-
-    if map.fd < 0 {
-        return Err("Fail to create map".to_string());
-    }
-
-    if do_pin {
-        let fd = bpf_obj_pin(map.fd as u32, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
-        if fd < 0 {
-            return Err("Fail to pin object".to_string());
-        }
-    }
-
-    Ok(map)
-}
-
-pub unsafe fn prepare_bpffs(namespace: &str, name: &str) {
 }
 
 fn stringify_stdio(error: Error) -> String {
-    format!("{}", error)
-}
-
-fn stringify_nix(error: nix::Error) -> String {
     format!("{}", error)
 }
 
@@ -249,7 +235,7 @@ fn create_pin_path(path: &Path) -> Result<(), String> {
         Some(d) => d,
         None => return Err(format!("Fail to get parent directory of {:?}", path)),
     };
-    ::std::fs::create_dir_all(parent).map_err(stringify_stdio)
+    ::std::fs::create_dir_all(parent).map_err(|e| format!("Fail to create all dir: {}", e))
 }
 
 fn get_map_path(map_def: &bpf_map_def, map_name: &str, pin_path: &str) -> Result<PathBuf, String> {
@@ -298,6 +284,21 @@ fn create_map_path(map_def: &bpf_map_def, map_name: &str, params: &SectionParams
     create_pin_path(&map_path)?;
     return Ok(map_path);
 }
+
+fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
+    let attr: perf_event_attr =
+        perf_event_attr::gen_perf_event_attr(perf_type_id::PERF_TYPE_SOFTWARE,
+                                             perf_event_sample_format::PERF_SAMPLE_RAW,
+                                             1,
+                                             ::std::mem::size_of::<perf_event_attr>() as u32,
+                                             perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT as u64);
+    unsafe {
+        syscall!(PERF_EVENT_OPEN,
+                 &attr as *const _ as usize,
+                 pid, cpu, group_fd, flags) as i32
+    }
+}
+
 
 impl Module {
     fn elf_read_license(&self) -> Result<String, String> {
@@ -355,7 +356,7 @@ impl Module {
             maps.insert(name.to_string(), EbpfMap {
                 name: name.to_string(),
                 m: map,
-                headers: 0,
+                headers: Vec::new(),
                 page_count: 0,
                 pmu_fds: Vec::new(),
             });
@@ -479,6 +480,8 @@ impl Module {
                 let is_cgroup_sock = sec_name.starts_with("cgroup/sock");
                 let is_socket_filter = sec_name.starts_with("socket");
                 let is_tracepoint = sec_name.starts_with("tracepoint/");
+                let is_sched_cls = sec_name.starts_with("sched_cls/");
+                let is_sched_act = sec_name.starts_with("sched_act/");
 
                 let progType = {
                     if is_kprobe || is_kretprobe {
@@ -491,12 +494,17 @@ impl Module {
                         bpf_prog_type::BPF_PROG_TYPE_SOCKET_FILTER
                     } else if is_tracepoint {
                         bpf_prog_type::BPF_PROG_TYPE_TRACEPOINT
+                    } else if is_sched_act {
+                        bpf_prog_type::BPF_PROG_TYPE_SCHED_ACT
+                    } else if is_sched_cls {
+                        bpf_prog_type::BPF_PROG_TYPE_SCHED_CLS
                     } else {
                         panic!("Invalid prog type");
                     }
                 };
 
-                if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint {
+                if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
+                    || is_tracepoint || is_sched_act || is_sched_cls {
                     let rdata = &rsec.data;
                     if rdata.len() == 0 {
                         continue
@@ -538,6 +546,12 @@ impl Module {
                             fd: prog_fd,
                             efd: -1,
                         });
+                    } else if is_sched_cls || is_sched_act {
+                        self.sched_programs.insert(sec_name.to_string(), SchedProgram {
+                            name: sec_name.to_string(),
+                            insns: insns as usize,
+                            fd: prog_fd,
+                        });
                     }
                 }
             }
@@ -555,6 +569,8 @@ impl Module {
             let is_cgroup_sock = sec_name.starts_with("cgroup/sock");
             let is_socket_filter = sec_name.starts_with("socket");
             let is_tracepoint = sec_name.starts_with("tracepoint/");
+            let is_sched_cls = sec_name.starts_with("sched_cls/");
+            let is_sched_act = sec_name.starts_with("sched_act/");
 
             let progType = {
                 if is_kprobe || is_kretprobe {
@@ -567,12 +583,17 @@ impl Module {
                     bpf_prog_type::BPF_PROG_TYPE_SOCKET_FILTER
                 } else if is_tracepoint {
                     bpf_prog_type::BPF_PROG_TYPE_TRACEPOINT
+                } else if is_sched_act {
+                    bpf_prog_type::BPF_PROG_TYPE_SCHED_ACT
+                } else if is_sched_cls {
+                    bpf_prog_type::BPF_PROG_TYPE_SCHED_CLS
                 } else {
                     panic!("Invalid prog type");
                 }
             };
 
-            if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint {
+            if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
+                || is_tracepoint || is_sched_act || is_sched_cls {
                 let data = &sec.data;
                 if data.len() == 0 {
                     continue
@@ -612,22 +633,16 @@ impl Module {
                         fd: prog_fd,
                         efd: -1,
                     });
+                } else if is_sched_cls || is_sched_act {
+                    self.sched_programs.insert(sec_name.to_string(), SchedProgram {
+                        name: sec_name.to_string(),
+                        insns: insns as usize,
+                        fd: prog_fd,
+                    });
                 }
             }
         }
-        Ok(())
-    }
-
-    fn perf_event_open_map(pid: i32, cpu: i32, groupd_fd: i32, flags: u64) -> i32 {
-        let attr: perf_event_attr =
-            perf_event_attr::gen_perf_event_attr(perf_type_id::PERF_TYPE_SOFTWARE,
-                                                 perf_event_sample_format::PERF_SAMPLE_RAW,
-                                                 1,
-                                                 ::std::mem::size_of::<perf_event_attr>(),
-                                                 perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT);
-        syscall!(PERF_EVENT_OPEN,
-                 &attr as *const _ as usize,
-                 pid, cpu, group_fd, flags) as i32
+        return self.initialize_perf_maps(params);
     }
 
     fn initialize_perf_maps(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
@@ -636,7 +651,8 @@ impl Module {
                 continue;
             }
 
-            let pg_size = match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE).map_err(stringify_nix)? {
+            let pg_size = match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE)
+                .map_err(|e| format!("Fail to get page size: {}", e))? {
                 Some(res) => res,
                 None => return Err("Fail to get page size".to_string()),
             };
@@ -658,15 +674,15 @@ impl Module {
             let cpus = cpuonline::cpuonline::get()?;
 
             for cpu in &cpus {
-                let pmufd = perf_event_open_map(-1, cpu, -1, PERF_FLAG_FD_CLOEXEC);
+                let pmufd = perf_event_open_map(-1, *cpu, -1, PERF_FLAG_FD_CLOEXEC as u64);
                 if pmufd < 0 {
                     return Err("Fail to call perf_event_open".to_string());
                 }
 
-                let mmap_size = pg_size * (m.page_count + 1);
+                let mmap_size = pg_size * (m.page_count as i64 + 1);
 
                 let base = unsafe {
-                    nix::sys::mmap::mmap(::std::ptr::null_mut(), mmap_size,
+                    nix::sys::mman::mmap(::std::ptr::null_mut(), mmap_size as usize,
                                          nix::sys::mman::PROT_READ|nix::sys::mman::PROT_WRITE,
                                          nix::sys::mman::MAP_SHARED, pmufd, 0)
                         .map_err(|e| format!("Fail to mmap: {}", e))?
@@ -675,7 +691,19 @@ impl Module {
                 let ret = unsafe {
                     syscall!(IOCTL, pmufd, PERF_EVENT_IOC_ENABLE, 0)
                 };
+                if ret != 0 {
+                    return Err(format!("Error enabling perf event: {}",
+                                       Error::last_os_error().raw_os_error().unwrap()));
+                }
 
+                let ret = bpf_map_update_elem(m.m.fd as u32, cpu as *const u32 as *const _,
+                                              &pmufd as *const _ as *mut _,
+                                              BPF_ANY as u64);
+                if ret != 0 {
+                    return Err(format!("Cannot assign perf fd to map {} cpu {})", name, cpu));
+                }
+                m.pmu_fds.push(pmufd);
+                m.headers.push(base as *mut perf_event_mmap_page);
             }
         }
         Ok(())
