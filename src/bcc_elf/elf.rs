@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use perf_event_bindings::{perf_event_attr, perf_type_id, perf_event_sample_format, perf_sw_ids,
                           PERF_FLAG_FD_CLOEXEC, perf_event_mmap_page};
-use perf_event::PERF_EVENT_IOC_ENABLE;
+use bcc_elf::perf_event::PERF_EVENT_IOC_ENABLE;
 
 const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;
 

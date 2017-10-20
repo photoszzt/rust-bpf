@@ -58,7 +58,7 @@ impl perf_event_attr {
     pub fn gen_perf_event_attr_open_tracepoint(perf_type: perf_type_id,
                                                sample_type: perf_event_sample_format,
                                                wakeup_events: u32,
-                                               sample_period: u32,
+                                               sample_period: u64,
                                                config: u64) -> perf_event_attr {
         perf_event_attr {
             type_: perf_type as u32,
