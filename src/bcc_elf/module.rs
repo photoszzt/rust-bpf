@@ -75,20 +75,20 @@ fn perf_event_open_tracepoint(tracepoint_id: u64, pid: i32, cpu: u32, group_fd: 
 }
 
 fn write_kprobe_event(probe_type: &str, event_name: &str, func_name: &str, maxactive_str: &str)
-                      -> Result<i32, String> {
-    let f = OpenOptions.append(true).open(kprobe_events_filename)
-        .map_err(|e| format!("Fail to open file: ", e))?;
+                      -> Result<i32, ::std::io::Error> {
+    let f = OpenOptions.append(true).open(kprobe_events_filename)?;
     let cmd = format!("{}{}:{} {}", probe_type, maxactive_str, event_name, func_name);
-    f.write_all(cmd.as_bytes()).map_err(|e| format!("Fail writing string to file: {}", e))?;
+    f.write_all(cmd.as_bytes())?;
 
-    let kprobeIdFile = OpenOptions::new().read(true)
-        .open(format!("/sys/kernel/debug/tracing/events/kprobes/{}/id", event_name));
+    let mut found_kprobeid = true;
+    let kprobeIdFile = match OpenOptions::new().read(true)
+        .open(format!("/sys/kernel/debug/tracing/events/kprobes/{}/id", event_name)) {
+            Ok(res) => res,
+            Err(e) => 
+        };
     let buffer = String::new();
-    // TODO
-    kprobeIdFile.read_to_string(&mut buffer)
-        .map_err(|e| format!("Fail to read file content to string: {}", e))?;
-    let kprobe_id = i32::from_str(buffer.trim())
-        .map_err(|e| format!("Fail to convert kprobe_id to integer: {}", e))?;
+    kprobeIdFile.read_to_string(&mut buffer)?;
+    let kprobe_id = i32::from_str(buffer.trim())?;
     return Ok(kprobe_id);
 }
 
