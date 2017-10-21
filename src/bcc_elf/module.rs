@@ -186,20 +186,13 @@ impl Kprobe {
         let kprobeid_res = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, &maxactive_str);
         let kprobeid;
         if let Err(e) = kprobeid_res {
-            if e.kind() == ErrorKind::Other {
-                if let Some(inner_err) = e.get_ref() {
-                    if inner_err.description() == "Can't find kprobe id" {
-                        kprobeid = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, "")
-                            .map_err(|e| format!("Fail to write kprobe event: {}", e))?;
-                    } else {
-                        return Err(format!("Fail to write kprobe event: {}", e));
-                    }
+            if e.kind() == ErrorKind::Other && e.get_ref()
+                .map_or(false, |inner_err| inner_err.description() == "Can't find kprobe id") {
+                    kprobeid = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, "")
+                        .map_err(|e| format!("Fail to write kprobe event: {}", e))?;
                 } else {
                     return Err(format!("Fail to write kprobe event: {}", e));
                 }
-            } else {
-                return Err(format!("Fail to write kprobe event: {}", e));
-            }
         } else {
             kprobeid = kprobeid_res.unwrap();
         }
