@@ -206,7 +206,7 @@ pub fn bpf_obj_get(pathname: *const u8) -> i32 {
 pub fn bpf_prog_attach(prog_fd: u32,
                        target_fd: u32,
                        att_type: bpf_attach_type,
-                       ) -> usize {
+                       ) -> i32 {
     let attr = bpf_attr::bpf_attr_att_det(target_fd,
                                           prog_fd,
                                           att_type as u32);
@@ -214,14 +214,14 @@ pub fn bpf_prog_attach(prog_fd: u32,
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_PROG_ATTACH,
                  &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
 
 pub fn bpf_prog_detach(prog_fd: u32,
                        target_fd: u32,
                        att_type: bpf_attach_type,
-                       ) -> usize {
+                       ) -> i32 {
     let attr = bpf_attr::bpf_attr_att_det(target_fd,
                                           prog_fd,
                                           att_type as u32);
@@ -229,6 +229,6 @@ pub fn bpf_prog_detach(prog_fd: u32,
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_PROG_DETACH,
                  &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
