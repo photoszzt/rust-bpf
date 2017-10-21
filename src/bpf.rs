@@ -126,7 +126,7 @@ pub fn bpf_verify_program(prog_type: bpf_prog_type,
 pub fn bpf_map_update_elem(fd: u32,
                            key: *const c_void,
                            value: *mut c_void,
-                           flags: u64) -> usize {
+                           flags: u64) -> i32 {
     let attr = bpf_attr::bpf_attr_elem_value(fd,
                                              key as u64,
                                              value as u64,
@@ -134,13 +134,13 @@ pub fn bpf_map_update_elem(fd: u32,
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_MAP_UPDATE_ELEM,
                  &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
 
 pub fn bpf_map_lookup_elem(fd: u32,
                            key: *const c_void,
-                           value: *mut c_void) -> usize {
+                           value: *mut c_void) -> i32 {
     let attr = bpf_attr::bpf_attr_elem_value(fd,
                                         key as u64,
                                         value as u64,
@@ -148,13 +148,13 @@ pub fn bpf_map_lookup_elem(fd: u32,
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_MAP_LOOKUP_ELEM,
                  &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
 
 pub fn bpf_map_delete_elem(fd: u32,
                            key: *const c_void,
-                           ) -> usize {
+                           ) -> i32 {
     let attr = bpf_attr::bpf_attr_elem_value(fd,
                                         key as u64,
                                         0,
@@ -162,7 +162,7 @@ pub fn bpf_map_delete_elem(fd: u32,
     unsafe {
         syscall!(BPF, bpf_cmd::BPF_MAP_DELETE_ELEM,
                  &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
 
