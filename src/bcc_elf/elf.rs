@@ -271,21 +271,20 @@ impl bpf_map_def {
                        -> Result<PathBuf, String> {
         let map_path = self.get_map_path(map_name, &params.pin_path)?;
 
-        if bpf_map_def::validate_map_path(&map_path).is_err() {
+        if bpf_map_def::validate_path(&map_path).is_err() {
             return Err(format!("invalid path {:?}", &map_path))
         }
         create_pin_path(&map_path)?;
         return Ok(map_path);
     }
 
-    fn validate_map_path(path: &Path) -> ::std::io::Result<PathBuf> {
+    pub fn validate_path(path: &Path) -> ::std::io::Result<PathBuf> {
         if !path.starts_with(BPFFS_PATH) {
             Err(Error::new(ErrorKind::Other, "path doesn't start with bpffs path"))
         } else {
             path.canonicalize()
         }
     }
-
 }
 
 fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
