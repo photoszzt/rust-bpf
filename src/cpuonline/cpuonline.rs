@@ -9,7 +9,7 @@ fn read_cpu_range(cpu_range_str: &str) -> Result<Vec<u32>, String> {
     let mut cpus = Vec::new();
     let cpu_range_str_trim = cpu_range_str.trim();
     for cpu_range in cpu_range_str_trim.split(',') {
-        let rangeop: Vec<&str> = cpu_range.split('-').collect();
+        let rangeop: Vec<&str> = cpu_range.splitn(2, '-').collect();
         let first = match u32::from_str(rangeop[0]) {
             Ok(res) => res,
             Err(e) => return Err(format!("Fail to recognize first cpu number: {}", e)),

@@ -218,11 +218,12 @@ pub fn bpf_prog_attach(prog_fd: u32,
     }
 }
 
-pub fn bpf_prog_detach(target_fd: u32,
+pub fn bpf_prog_detach(prog_fd: u32,
+                       target_fd: u32,
                        att_type: bpf_attach_type,
                        ) -> usize {
     let attr = bpf_attr::bpf_attr_att_det(target_fd,
-                                          0,
+                                          prog_fd,
                                           att_type as u32);
 
     unsafe {

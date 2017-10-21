@@ -52,10 +52,10 @@ impl Clone for bpf_map {
     fn clone(&self) -> Self { *self }
 }
 
-const PIN_NONE: ::std::os::raw::c_uint = 0;
-const PIN_OBJECT_NS: ::std::os::raw::c_uint = 1;
-const PIN_GLOBAL_NS: ::std::os::raw::c_uint = 2;
-const PIN_CUSTOM_NS: ::std::os::raw::c_uint = 3;
+pub const PIN_NONE: ::std::os::raw::c_uint = 0;
+pub const PIN_OBJECT_NS: ::std::os::raw::c_uint = 1;
+pub const PIN_GLOBAL_NS: ::std::os::raw::c_uint = 2;
+pub const PIN_CUSTOM_NS: ::std::os::raw::c_uint = 3;
 
 #[derive(Debug, Default, Clone)]
 pub struct SectionParams {
@@ -67,11 +67,11 @@ pub struct SectionParams {
 // represents a ebpf map.
 #[derive(Clone)]
 pub struct EbpfMap {
-    name: String,
-    m: bpf_map,
-    page_count: u32,
-    headers: Vec<*mut perf_event_mmap_page>,
-    pmu_fds: Vec<i32>,
+    pub name: String,
+    pub m: bpf_map,
+    pub page_count: u32,
+    pub headers: Vec<*mut perf_event_mmap_page>,
+    pub pmu_fds: Vec<i32>,
 }
 
 impl Default for bpf_map_def {
@@ -238,51 +238,54 @@ fn create_pin_path(path: &Path) -> Result<(), String> {
     ::std::fs::create_dir_all(parent).map_err(|e| format!("Fail to create all dir: {}", e))
 }
 
-fn get_map_path(map_def: &bpf_map_def, map_name: &str, pin_path: &str) -> Result<PathBuf, String> {
-    match map_def.pinning {
-        PIN_OBJECT_NS => Err("Not implemented yet".to_string()),
-        PIN_GLOBAL_NS => {
-            let namespace = unsafe {
-                match ::std::ffi::CStr::from_ptr(map_def.namespace.as_ptr()).to_str() {
-                    Ok(res) => res,
-                    Err(e) => return Err(format!("Fail to convert namespace to valid utf8 str: {}", e)),
+impl bpf_map_def {
+    pub fn get_map_path(&self, map_name: &str, pin_path: &str) -> Result<PathBuf, String> {
+        match self.pinning {
+            PIN_OBJECT_NS => Err("Not implemented yet".to_string()),
+            PIN_GLOBAL_NS => {
+                let namespace = unsafe {
+                    match ::std::ffi::CStr::from_ptr(self.namespace.as_ptr()).to_str() {
+                        Ok(res) => res,
+                        Err(e) => return Err(format!("Fail to convert namespace to valid utf8 str: {}", e)),
+                    }
+                };
+                if namespace == "" {
+                    return Err(format!("map {} has empty namespace", map_name));
                 }
-            };
-            if namespace == "" {
-                return Err(format!("map {} has empty namespace", map_name));
+                Ok([BPFFS_PATH, namespace, BPFDIRGLOBALS, map_name].iter().collect())
             }
-            Ok([BPFFS_PATH, namespace, BPFDIRGLOBALS, map_name].iter().collect())
-        }
-        PIN_CUSTOM_NS => {
-            if pin_path == "" {
-                return Err(format!("no pin path given for map {} with PIN_CUSTOM_NS", map_name))
+            PIN_CUSTOM_NS => {
+                if pin_path == "" {
+                    return Err(format!("no pin path given for map {} with PIN_CUSTOM_NS", map_name))
+                }
+                Ok([BPFFS_PATH, pin_path].iter().collect())
             }
-            Ok([BPFFS_PATH, pin_path].iter().collect())
-        }
-        _ => {
-            // map is not pinned
-            Ok(PathBuf::from(""))
+            _ => {
+                // map is not pinned
+                Ok(PathBuf::from(""))
+            }
         }
     }
-}
 
-fn validate_map_path(path: &Path) -> ::std::io::Result<PathBuf> {
-    if !path.starts_with(BPFFS_PATH) {
-        Err(Error::new(ErrorKind::Other, "path doesn't start with bpffs path"))
-    } else {
-        path.canonicalize()
-    }
-}
-
-fn create_map_path(map_def: &bpf_map_def, map_name: &str, params: &SectionParams)
+    pub fn create_map_path(&self, map_name: &str, params: &SectionParams)
                        -> Result<PathBuf, String> {
-    let map_path = get_map_path(map_def, map_name, &params.pin_path)?;
+        let map_path = self.get_map_path(map_name, &params.pin_path)?;
 
-    if validate_map_path(&map_path).is_err() {
-        return Err(format!("invalid path {:?}", &map_path))
+        if bpf_map_def::validate_map_path(&map_path).is_err() {
+            return Err(format!("invalid path {:?}", &map_path))
+        }
+        create_pin_path(&map_path)?;
+        return Ok(map_path);
     }
-    create_pin_path(&map_path)?;
-    return Ok(map_path);
+
+    fn validate_map_path(path: &Path) -> ::std::io::Result<PathBuf> {
+        if !path.starts_with(BPFFS_PATH) {
+            Err(Error::new(ErrorKind::Other, "path doesn't start with bpffs path"))
+        } else {
+            path.canonicalize()
+        }
+    }
+
 }
 
 fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
@@ -348,7 +351,7 @@ impl Module {
                     &*map_def_ptr
                 }
             };
-            let map_path = create_map_path(map_def, name, &params[&sec.shdr.name])?;
+            let map_path = map_def.create_map_path(name, &params[&sec.shdr.name])?;
             let map = bpf_load_map(map_def, &map_path)?;
             if let Some(oldMap) = maps.get(name) {
                 return Err(format!("Duplicate map: {} and {}", oldMap.name, name));
@@ -522,33 +525,28 @@ impl Module {
                     }
                     if is_kprobe || is_kretprobe {
                         self.probes.insert(sec_name.to_string(), Kprobe {
-                            name: sec_name.to_string(),
                             insns: insns as usize,
                             fd: prog_fd,
                             efd: -1
                         });
                     } else if is_cgroup_sock || is_cgroup_skb {
                         self.cgroup_programs.insert(sec_name.to_string(), CgroupProgram {
-                            name: sec_name.to_string(),
                             insns: insns as usize,
                             fd: prog_fd,
                         });
                     } else if is_socket_filter {
                         self.socket_filters.insert(sec_name.to_string(), SocketFilter {
-                            name: sec_name.to_string(),
                             insns: insns as usize,
                             fd: prog_fd,
                         });
                     } else if is_tracepoint {
                         self.tracepoint_programs.insert(sec_name.to_string(), TracepointProgram {
-                            name: sec_name.to_string(),
                             insns: insns as usize,
                             fd: prog_fd,
                             efd: -1,
                         });
                     } else if is_sched_cls || is_sched_act {
                         self.sched_programs.insert(sec_name.to_string(), SchedProgram {
-                            name: sec_name.to_string(),
                             insns: insns as usize,
                             fd: prog_fd,
                         });
@@ -609,33 +607,28 @@ impl Module {
                 }
                 if is_kprobe || is_kretprobe {
                     self.probes.insert(sec_name.to_string(), Kprobe {
-                        name: sec_name.to_string(),
                         insns: insns as usize,
                         fd: prog_fd,
                         efd: -1
                     });
                 } else if is_cgroup_sock || is_cgroup_skb {
                     self.cgroup_programs.insert(sec_name.to_string(), CgroupProgram {
-                        name: sec_name.to_string(),
                         insns: insns as usize,
                         fd: prog_fd,
                     });
                 } else if is_socket_filter {
                     self.socket_filters.insert(sec_name.to_string(), SocketFilter {
-                        name: sec_name.to_string(),
                         insns: insns as usize,
                         fd: prog_fd,
                     });
                 } else if is_tracepoint {
                     self.tracepoint_programs.insert(sec_name.to_string(), TracepointProgram {
-                        name: sec_name.to_string(),
                         insns: insns as usize,
                         fd: prog_fd,
                         efd: -1,
                     });
                 } else if is_sched_cls || is_sched_act {
                     self.sched_programs.insert(sec_name.to_string(), SchedProgram {
-                        name: sec_name.to_string(),
                         insns: insns as usize,
                         fd: prog_fd,
                     });
