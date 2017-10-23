@@ -1,11 +1,12 @@
 extern crate nix;
+extern crate bcc_sys;
 
 use bpffs::fs::BPFFS_PATH;
 use std::path::Path;
-use bpf_bindings::bpf_map_def;
+use bpf::bpf_map_def;
 use bpffs;
 use std::path::PathBuf;
-use bpf::bpf_obj_pin;
+use bcc_sys::bccapi::bpf_obj_pin;
 
 pub const BPFDIRGLOBALS: &'static str = "globals";
 
@@ -20,7 +21,9 @@ fn pin_object_(fd: i32, path: &Path) -> Result<(), String> {
     if stat_res.is_ok() {
         return Err(format!("aborting, found file at {:?}", path));
     }
-    let fd = bpf_obj_pin(fd as u32, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
+    let fd = unsafe {
+        bpf_obj_pin(fd, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8)
+    };
     if fd < 0 {
         return Err(format!("Fail to pin object to {}: {}", path.to_string_lossy(), nix::errno::errno()));
     }

@@ -1,12 +1,58 @@
-use bpf_bindings::*;
-use std::os::raw::c_void;
+extern crate bcc_sys;
 
-impl bpf_attr {
-    pub fn bpf_attr_map_create(map_type: __u32,
-                               key_size: __u32,
-                               value_size: __u32,
-                               max_entries: __u32,
-                               map_flags: __u32) -> bpf_attr {
+use bcc_sys::bccapi::*;
+
+#[repr(C)]
+#[derive(Copy)]
+pub struct bpf_map_def {
+    pub type_: ::std::os::raw::c_uint,
+    pub key_size: ::std::os::raw::c_uint,
+    pub value_size: ::std::os::raw::c_uint,
+    pub max_entries: ::std::os::raw::c_uint,
+    pub map_flags: ::std::os::raw::c_uint,
+    pub pinning: ::std::os::raw::c_uint,
+    pub namespace: [::std::os::raw::c_char; 256usize],
+}
+impl Clone for bpf_map_def {
+    fn clone(&self) -> Self { *self }
+}
+
+pub trait bpf_attr_ext {
+    fn bpf_attr_map_create(map_type: u32,
+                           key_size: u32,
+                           value_size: u32,
+                           max_entries: u32,
+                           map_flags: u32) -> bpf_attr;
+    fn bpf_attr_elem_value(map_fd: u32,
+                           key: u64,
+                           value: u64,
+                           flags: u64) -> bpf_attr;
+    fn bpf_attr_elem_next_key(map_fd: u32,
+                              key: u64,
+                              next_key: u64,
+                              flags: u64) -> bpf_attr;
+    fn bpf_attr_prog_load(prog_type: u32,
+                          insn_cnt: u32,
+                          insns: u64,
+                          license: u64,
+                          log_level: u32,
+                          log_size: u32,
+                          log_buf: u64,
+                          kern_version: u32) -> bpf_attr;
+    fn bpf_attr_obj(pathname: u64,
+                    bpf_fd: u32) -> bpf_attr;
+    fn bpf_attr_att_det(target_fd: u32,
+                        attach_bpf_fd: u32,
+                        attach_type: u32) -> bpf_attr;
+}
+
+
+impl bpf_attr_ext for bpf_attr {
+    fn bpf_attr_map_create(map_type: u32,
+                           key_size: u32,
+                           value_size: u32,
+                           max_entries: u32,
+                           map_flags: u32) -> bpf_attr {
         bpf_attr {
             __bindgen_anon_1: bpf_attr__bindgen_ty_1 {
                 map_type,
@@ -14,14 +60,17 @@ impl bpf_attr {
                 value_size,
                 max_entries,
                 map_flags,
+                inner_map_fd: 0,
+                numa_node: 0,
+                map_name: [0; 16usize],
             },
         }
     }
 
-    pub fn bpf_attr_elem_value(map_fd: __u32,
-                                     key: __u64,
-                                     value: __u64,
-                                     flags: __u64) -> bpf_attr {
+    fn bpf_attr_elem_value(map_fd: u32,
+                           key: u64,
+                           value: u64,
+                           flags: u64) -> bpf_attr {
         bpf_attr {
             __bindgen_anon_2: bpf_attr__bindgen_ty_2 {
                 map_fd,
@@ -34,10 +83,10 @@ impl bpf_attr {
         }
     }
 
-    pub fn bpf_attr_elem_next_key(map_fd: __u32,
-                                        key: __u64,
-                                        next_key: __u64,
-                                        flags: __u64) -> bpf_attr {
+    fn bpf_attr_elem_next_key(map_fd: u32,
+                              key: u64,
+                              next_key: u64,
+                              flags: u64) -> bpf_attr {
         bpf_attr {
             __bindgen_anon_2: bpf_attr__bindgen_ty_2 {
                 map_fd,
@@ -50,14 +99,14 @@ impl bpf_attr {
         }
     }
 
-    pub fn bpf_attr_prog_load(prog_type: __u32,
-                              insn_cnt: __u32,
-                              insns: __u64,
-                              license: __u64,
-                              log_level: __u32,
-                              log_size: __u32,
-                              log_buf: __u64,
-                              kern_version: __u32) -> bpf_attr {
+    fn bpf_attr_prog_load(prog_type: u32,
+                          insn_cnt: u32,
+                          insns: u64,
+                          license: u64,
+                          log_level: u32,
+                          log_size: u32,
+                          log_buf: u64,
+                          kern_version: u32) -> bpf_attr {
         bpf_attr {
             __bindgen_anon_3: bpf_attr__bindgen_ty_3 {
                 prog_type,
@@ -68,12 +117,14 @@ impl bpf_attr {
                 log_size,
                 log_buf,
                 kern_version,
+                prog_flags: 0,
+                prog_name: [0; 16usize],
             },
         }
     }
 
-    pub fn bpf_attr_obj(pathname: __u64,
-                        bpf_fd: __u32) -> bpf_attr {
+    fn bpf_attr_obj(pathname: u64,
+                    bpf_fd: u32) -> bpf_attr {
         bpf_attr {
             __bindgen_anon_4: bpf_attr__bindgen_ty_4 {
                 pathname,
@@ -82,14 +133,15 @@ impl bpf_attr {
         }
     }
 
-    pub fn bpf_attr_att_det(target_fd: __u32,
-                            attach_bpf_fd: __u32,
-                            attach_type: __u32) -> bpf_attr {
+    fn bpf_attr_att_det(target_fd: u32,
+                        attach_bpf_fd: u32,
+                        attach_type: u32) -> bpf_attr {
         bpf_attr {
             __bindgen_anon_5: bpf_attr__bindgen_ty_5 {
                 target_fd,
                 attach_bpf_fd,
                 attach_type,
+                attach_flags: 0,
             },
         }
     }
@@ -120,86 +172,6 @@ pub fn bpf_verify_program(prog_type: bpf_prog_type,
         syscall!(BPF, bpf_cmd::BPF_PROG_LOAD,
                  &attr as *const _ as usize,
                  ::std::mem::size_of::<bpf_attr>())
-    }
-}
-
-pub fn bpf_map_update_elem(fd: u32,
-                           key: *const c_void,
-                           value: *mut c_void,
-                           flags: u64) -> i32 {
-    let attr = bpf_attr::bpf_attr_elem_value(fd,
-                                             key as u64,
-                                             value as u64,
-                                             flags);
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_MAP_UPDATE_ELEM,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>()) as i32
-    }
-}
-
-pub fn bpf_map_lookup_elem(fd: u32,
-                           key: *const c_void,
-                           value: *mut c_void) -> i32 {
-    let attr = bpf_attr::bpf_attr_elem_value(fd,
-                                        key as u64,
-                                        value as u64,
-                                        0);
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_MAP_LOOKUP_ELEM,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>()) as i32
-    }
-}
-
-pub fn bpf_map_delete_elem(fd: u32,
-                           key: *const c_void,
-                           ) -> i32 {
-    let attr = bpf_attr::bpf_attr_elem_value(fd,
-                                        key as u64,
-                                        0,
-                                        0);
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_MAP_DELETE_ELEM,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>()) as i32
-    }
-}
-
-pub fn bpf_map_get_next_key(fd: u32,
-                           key: *const c_void,
-                            next_key: *mut c_void) -> usize {
-    let attr = bpf_attr::bpf_attr_elem_value(fd,
-                                        key as u64,
-                                        next_key as u64,
-                                        0);
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_MAP_GET_NEXT_KEY,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
-    }
-}
-
-pub fn bpf_obj_pin(fd: u32,
-                   pathname: *const u8) -> i32 {
-    let attr = bpf_attr::bpf_attr_obj(pathname as u64, fd);
-
-
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_OBJ_PIN,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>()) as i32
-    }
-}
-
-pub fn bpf_obj_get(pathname: *const u8) -> i32 {
-    let attr = bpf_attr::bpf_attr_obj(pathname as u64, 0);
-
-
-    unsafe {
-        syscall!(BPF, bpf_cmd::BPF_OBJ_GET,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>()) as i32
     }
 }
 

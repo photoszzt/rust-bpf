@@ -10,9 +10,8 @@ extern crate elf;
 extern crate byteorder;
 extern crate libc;
 extern crate nix;
+extern crate bcc_sys;
 
-pub mod bpf_bindings;
-pub mod bcc_bindings;
 pub mod perf_event_bindings;
 pub mod bpf;
 pub mod bpffs;

@@ -1,8 +1,9 @@
 extern crate nix;
 extern crate libc;
+extern crate bcc_sys;
 
 use std::collections::HashMap;
-use bpf_bindings::*;
+use bcc_sys::bccapi::*;
 use elf;
 use bcc_elf::elf::EbpfMap;
 use std::fs::{OpenOptions, File};
@@ -13,7 +14,7 @@ use bcc_elf::perf_event::{PERF_EVENT_IOC_ENABLE, PERF_EVENT_IOC_SET_BPF};
 use std::str::FromStr;
 use std::io::{Read, Write};
 use std::os::unix::io::AsRawFd;
-use bpf::{bpf_prog_attach, bpf_prog_detach, };
+use bpf::{bpf_prog_attach, bpf_prog_detach};
 use bcc_elf;
 
 pub struct Module {

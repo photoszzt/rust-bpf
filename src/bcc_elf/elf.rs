@@ -1,9 +1,12 @@
 extern crate libc;
 extern crate nix;
 extern crate elf;
+extern crate bcc_sys;
 
-use bpf_bindings::*;
-use bpf::*;
+use bcc_sys::bccapi::{bpf_attr, bpf_cmd, bpf_prog_type, bpf_map_type, bpf_insn,
+                      BPF_LD, BPF_IMM, BPF_DW, BPF_PSEUDO_MAP_FD, BPF_ANY,
+                      bpf_obj_get, bpf_obj_pin, bpf_update_elem};
+use bpf::{bpf_map_def};
 use elf::types::*;
 use bcc_elf::kernel_version::*;
 use std::io::Error;
@@ -21,12 +24,13 @@ use std::path::Path;
 use perf_event_bindings::{perf_event_attr, perf_type_id, perf_event_sample_format, perf_sw_ids,
                           PERF_FLAG_FD_CLOEXEC, perf_event_mmap_page};
 use bcc_elf::perf_event::PERF_EVENT_IOC_ENABLE;
+use bpf::bpf_attr_ext;
 
 const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;
 
 
 #[repr(C)]
-#[derive(Copy, Default)]
+#[derive(Default, Copy)]
 pub struct bpf_map {
     pub fd: ::std::os::raw::c_int,
     pub def: bpf_map_def,
@@ -201,7 +205,9 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
         return Err("Not support object pinning".to_string());
     } else if map_def.pinning == PIN_GLOBAL_NS || map_def.pinning == PIN_CUSTOM_NS {
         if nix::sys::stat::stat(path).map_err(|e| format!("Stat fail: {}", e)).is_ok() {
-            let fd = bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
+            let fd = unsafe {
+                bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8)
+            };
             if fd < 0 {
                 return Err("Fail to get pinned obj fd".to_string());
             }
@@ -214,7 +220,9 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
                 return Err("Fail to create map".to_string());
             }
 
-            let fd = bpf_obj_pin(map.fd as u32, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const u8);
+            let fd = unsafe {
+                bpf_obj_pin(map.fd, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8)
+            };
             if fd < 0 {
                 return Err("Fail to pin object".to_string());
             }
@@ -663,9 +671,9 @@ impl Module {
                     m.page_count = param.perf_ring_buffer_page_count as u32;
                 }
             }
-            let cpus = cpuonline::cpuonline::get()?;
+            let mut cpus = cpuonline::cpuonline::get()?;
 
-            for cpu in &cpus {
+            for cpu in cpus.iter_mut() {
                 let pmufd = perf_event_open_map(-1, *cpu, -1, PERF_FLAG_FD_CLOEXEC as u64);
                 if pmufd < 0 {
                     return Err("Fail to call perf_event_open".to_string());
@@ -688,9 +696,11 @@ impl Module {
                                        Error::last_os_error().raw_os_error().unwrap()));
                 }
 
-                let ret = bpf_map_update_elem(m.m.fd as u32, cpu as *const u32 as *const _,
-                                              &pmufd as *const _ as *mut _,
-                                              BPF_ANY as u64);
+                let ret = unsafe {
+                    bpf_update_elem(m.m.fd, cpu as *mut u32 as *mut _,
+                                          &pmufd as *const _ as *mut _,
+                                          BPF_ANY as u64)
+                };
                 if ret != 0 {
                     return Err(format!("Cannot assign perf fd to map {} cpu {})", name, cpu));
                 }
