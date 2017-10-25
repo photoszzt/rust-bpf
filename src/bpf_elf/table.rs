@@ -1,7 +1,7 @@
 extern crate nix;
 extern crate libc;
 
-use bcc_elf::elf::EbpfMap;
+use bpf_elf::elf::EbpfMap;
 use std::os::raw::c_void;
 use bcc_sys::bccapi::{bpf_update_elem, bpf_lookup_elem, bpf_delete_elem};
 

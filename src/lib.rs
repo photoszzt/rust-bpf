@@ -16,4 +16,5 @@ pub mod perf_event_bindings;
 pub mod bpf;
 pub mod bpffs;
 pub mod cpuonline;
-pub mod bcc_elf;
+pub mod bpf_elf;
+pub mod bcc;

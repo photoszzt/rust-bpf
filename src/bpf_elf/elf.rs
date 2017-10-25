@@ -8,7 +8,7 @@ use bcc_sys::bccapi::{bpf_attr, bpf_cmd, bpf_prog_type, bpf_map_type, bpf_insn,
                       bpf_obj_get, bpf_obj_pin, bpf_update_elem};
 use bpf::{bpf_map_def};
 use elf::types::*;
-use bcc_elf::kernel_version::*;
+use bpf_elf::kernel_version::*;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::default::Default;
@@ -16,14 +16,14 @@ use std::path::PathBuf;
 use std::io::Cursor;
 use bpffs::fs::{BPFFS_PATH, mounted};
 use cpuonline;
-use bcc_elf::pinning::BPFDIRGLOBALS;
+use bpf_elf::pinning::BPFDIRGLOBALS;
 use byteorder::{LittleEndian, BigEndian, ReadBytesExt};
-use bcc_elf::module::*;
+use bpf_elf::module::*;
 use std::collections::HashMap;
 use std::path::Path;
 use perf_event_bindings::{perf_event_attr, perf_type_id, perf_event_sample_format, perf_sw_ids,
                           PERF_FLAG_FD_CLOEXEC, perf_event_mmap_page};
-use bcc_elf::perf_event::PERF_EVENT_IOC_ENABLE;
+use bpf_elf::perf_event::PERF_EVENT_IOC_ENABLE;
 use bpf::bpf_attr_ext;
 
 const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;

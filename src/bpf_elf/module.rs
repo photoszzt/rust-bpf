@@ -5,17 +5,17 @@ extern crate bcc_sys;
 use std::collections::HashMap;
 use bcc_sys::bccapi::*;
 use elf;
-use bcc_elf::elf::EbpfMap;
+use bpf_elf::elf::EbpfMap;
 use std::fs::{OpenOptions, File};
 use std::io::{Error, ErrorKind};
 use perf_event_bindings::{perf_type_id, perf_event_attr, PERF_FLAG_FD_CLOEXEC,
                           perf_event_sample_format};
-use bcc_elf::perf_event::{PERF_EVENT_IOC_ENABLE, PERF_EVENT_IOC_SET_BPF};
+use bpf_elf::perf_event::{PERF_EVENT_IOC_ENABLE, PERF_EVENT_IOC_SET_BPF};
 use std::str::FromStr;
 use std::io::{Read, Write};
 use std::os::unix::io::AsRawFd;
 use bpf::{bpf_prog_attach, bpf_prog_detach};
-use bcc_elf;
+use bpf_elf;
 
 pub struct Module {
     pub file_name: String,
@@ -348,9 +348,9 @@ impl Module {
                     if option.unpin {
                         let map_def = m.m.def;
                         let pin_path = match map_def.pinning {
-                            bcc_elf::elf::PIN_CUSTOM_NS => &option.pin_path,
-                            bcc_elf::elf::PIN_GLOBAL_NS => "",
-                            bcc_elf::elf::PIN_OBJECT_NS => {
+                            bpf_elf::elf::PIN_CUSTOM_NS => &option.pin_path,
+                            bpf_elf::elf::PIN_GLOBAL_NS => "",
+                            bpf_elf::elf::PIN_OBJECT_NS => {
                                 return Err("unpinning with PIN_OBJECT_NS is to be implemented".to_string())
                             }
                             _ => return Err(format!("Unrecognized pinning: {}", map_def.pinning)),

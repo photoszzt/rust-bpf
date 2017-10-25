@@ -1,4 +1,4 @@
-use bcc_elf::module::Module;
+use bpf_elf::module::Module;
 
 pub struct PerfMap {
     name: String,
