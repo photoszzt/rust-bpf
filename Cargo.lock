@@ -1,5 +1,5 @@
 [root]
-name = "rust-bcc"
+name = "rust-bpf"
 version = "0.1.0"
 dependencies = [
  "bcc-sys 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
