@@ -1,7 +1,7 @@
 [package]
 authors = ["Zhiting Zhu"]
 build = "build.rs"
-name = "rust-bcc"
+name = "rust-bpf"
 version = "0.1.0"
 
 [build-dependencies]
