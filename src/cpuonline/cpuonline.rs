@@ -22,11 +22,11 @@ fn read_cpu_range(cpu_range_str: &str) -> Result<Vec<u32>, String> {
             Ok(res) => res,
             Err(e) => return Err(format!("Fail to recognize second cpu number: {}", e)),
         };
-        for n in first..last+1 {
+        for n in first..last + 1 {
             cpus.push(n);
         }
     }
-    return Ok(cpus)
+    return Ok(cpus);
 }
 
 pub fn get() -> Result<Vec<u32>, String> {
@@ -51,51 +51,51 @@ mod tests {
 
     lazy_static! {
         static ref test: Vec<test_data<'static>> = vec![
-		        test_data {
-			          data: "",
-			          expected: Vec::new(),
-			          valid:    false,
-		        },
-		        test_data {
-			          data: "0-3\n",
-			          expected: vec!{0, 1, 2, 3},
-			          valid:    true,
-		        },
-		        test_data {
-			          data: "   0-2,5",
-			          expected: vec!{0, 1, 2, 5},
-			          valid:   true,
-		        },
-		        test_data {
-			          data: "0,2,4-5,7-9",
-			          expected: vec!{0, 2, 4, 5, 7, 8, 9},
-			          valid:   true,
-		        },
-		        test_data {
-			          data: "0,2",
-			          expected: vec!{0, 2},
-			          valid:   true,
-		        },
-		        test_data {
-			          data: "0",
-			          expected: vec!{0},
-			          valid:   true,
-		        },
-		        test_data {
-			          data: "-2,5",
-			          expected: Vec::new(),
-			          valid:   false,
-		        },
-		        test_data {
-			          data: "2-@,5",
-			          expected: Vec::new(),
-			          valid:   false,
-		        },
-		        test_data {
-			          data: "-",
-			          expected: Vec::new(),
-			          valid:   false,
-		        },
+                test_data {
+                      data: "",
+                      expected: Vec::new(),
+                      valid:    false,
+                },
+                test_data {
+                      data: "0-3\n",
+                      expected: vec!{0, 1, 2, 3},
+                      valid:    true,
+                },
+                test_data {
+                      data: "   0-2,5",
+                      expected: vec!{0, 1, 2, 5},
+                      valid:   true,
+                },
+                test_data {
+                      data: "0,2,4-5,7-9",
+                      expected: vec!{0, 2, 4, 5, 7, 8, 9},
+                      valid:   true,
+                },
+                test_data {
+                      data: "0,2",
+                      expected: vec!{0, 2},
+                      valid:   true,
+                },
+                test_data {
+                      data: "0",
+                      expected: vec!{0},
+                      valid:   true,
+                },
+                test_data {
+                      data: "-2,5",
+                      expected: Vec::new(),
+                      valid:   false,
+                },
+                test_data {
+                      data: "2-@,5",
+                      expected: Vec::new(),
+                      valid:   false,
+                },
+                test_data {
+                      data: "-",
+                      expected: Vec::new(),
+                      valid:   false,
+                },
         ];
     }
     #[test]
@@ -109,6 +109,6 @@ mod tests {
                     assert_eq!(v[i], t.expected[i]);
                 }
             }
-        };
+        }
     }
 }

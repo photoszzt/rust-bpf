@@ -2,15 +2,16 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-#[macro_use]
-extern crate syscall;
+extern crate bcc_sys;
+extern crate byteorder;
+extern crate elf;
 #[macro_use]
 extern crate lazy_static;
-extern crate elf;
-extern crate byteorder;
 extern crate libc;
 extern crate nix;
-extern crate bcc_sys;
+extern crate regex;
+#[macro_use]
+extern crate syscall;
 
 pub mod perf_event_bindings;
 pub mod bpf;

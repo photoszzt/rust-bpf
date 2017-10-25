@@ -1,12 +1,12 @@
+extern crate bcc_sys;
+extern crate elf;
 extern crate libc;
 extern crate nix;
-extern crate elf;
-extern crate bcc_sys;
 
-use bcc_sys::bccapi::{bpf_attr, bpf_cmd, bpf_prog_type, bpf_map_type, bpf_insn,
-                      BPF_LD, BPF_IMM, BPF_DW, BPF_PSEUDO_MAP_FD, BPF_ANY,
-                      bpf_obj_get, bpf_obj_pin, bpf_update_elem};
-use bpf::{bpf_map_def};
+use bcc_sys::bccapi::{bpf_attr, bpf_cmd, bpf_insn, bpf_map_type, bpf_obj_get, bpf_obj_pin,
+                      bpf_prog_type, bpf_update_elem, BPF_ANY, BPF_DW, BPF_IMM, BPF_LD,
+                      BPF_PSEUDO_MAP_FD};
+use bpf::bpf_map_def;
 use elf::types::*;
 use bpf_elf::kernel_version::*;
 use std::io::Error;
@@ -14,19 +14,19 @@ use std::io::ErrorKind;
 use std::default::Default;
 use std::path::PathBuf;
 use std::io::Cursor;
-use bpffs::fs::{BPFFS_PATH, mounted};
+use bpffs::fs::{mounted, BPFFS_PATH};
 use cpuonline;
 use bpf_elf::pinning::BPFDIRGLOBALS;
-use byteorder::{LittleEndian, BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use bpf_elf::module::*;
 use std::collections::HashMap;
 use std::path::Path;
-use perf_event_bindings::{perf_event_attr, perf_type_id, perf_event_sample_format, perf_sw_ids,
-                          PERF_FLAG_FD_CLOEXEC, perf_event_mmap_page};
+use perf_event_bindings::{perf_event_attr, perf_event_mmap_page, perf_event_sample_format,
+                          perf_sw_ids, perf_type_id, PERF_FLAG_FD_CLOEXEC};
 use bpf_elf::perf_event::PERF_EVENT_IOC_ENABLE;
 use bpf::bpf_attr_ext;
 
-const USE_CURRENT_KERNEL_VERSION : u32 = 0xFFFE;
+const USE_CURRENT_KERNEL_VERSION: u32 = 0xFFFE;
 
 
 #[repr(C)]
@@ -37,23 +37,41 @@ pub struct bpf_map {
 }
 #[test]
 fn bindgen_test_layout_bpf_map() {
-    assert_eq!(::std::mem::size_of::<bpf_map>() , 284usize , concat ! (
-               "Size of: " , stringify ! ( bpf_map ) ));
-    assert_eq! (::std::mem::align_of::<bpf_map>() , 4usize , concat ! (
-                "Alignment of " , stringify ! ( bpf_map ) ));
-    assert_eq! (unsafe {
-                & ( * ( 0 as * const bpf_map ) ) . fd as * const _ as usize }
-                , 0usize , concat ! (
-                "Alignment of field: " , stringify ! ( bpf_map ) , "::" ,
-                stringify ! ( fd ) ));
-    assert_eq! (unsafe {
-                & ( * ( 0 as * const bpf_map ) ) . def as * const _ as usize }
-                , 4usize , concat ! (
-                "Alignment of field: " , stringify ! ( bpf_map ) , "::" ,
-                stringify ! ( def ) ));
+    assert_eq!(
+        ::std::mem::size_of::<bpf_map>(),
+        284usize,
+        concat!("Size of: ", stringify!(bpf_map))
+    );
+    assert_eq!(
+        ::std::mem::align_of::<bpf_map>(),
+        4usize,
+        concat!("Alignment of ", stringify!(bpf_map))
+    );
+    assert_eq!(
+        unsafe { &(*(0 as *const bpf_map)).fd as *const _ as usize },
+        0usize,
+        concat!(
+            "Alignment of field: ",
+            stringify!(bpf_map),
+            "::",
+            stringify!(fd)
+        )
+    );
+    assert_eq!(
+        unsafe { &(*(0 as *const bpf_map)).def as *const _ as usize },
+        4usize,
+        concat!(
+            "Alignment of field: ",
+            stringify!(bpf_map),
+            "::",
+            stringify!(def)
+        )
+    );
 }
 impl Clone for bpf_map {
-    fn clone(&self) -> Self { *self }
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 pub const PIN_NONE: ::std::os::raw::c_uint = 0;
@@ -92,19 +110,15 @@ impl Default for bpf_map_def {
     }
 }
 
-fn bpf_create_map(map_type: u32,
-                  key_size: u32,
-                  value_size: u32,
-                  max_entries: u32) -> i32 {
-    let attr = bpf_attr::bpf_attr_map_create(map_type,
-                                             key_size,
-                                             value_size,
-                                             max_entries,
-                                             0);
+fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u32) -> i32 {
+    let attr = bpf_attr::bpf_attr_map_create(map_type, key_size, value_size, max_entries, 0);
     let mut ret = unsafe {
-        syscall!(BPF, bpf_cmd::BPF_MAP_CREATE,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+        syscall!(
+            BPF,
+            bpf_cmd::BPF_MAP_CREATE,
+            &attr as *const _ as usize,
+            ::std::mem::size_of::<bpf_attr>()
+        )
     };
     if let Some(raw_os_err) = Error::last_os_error().raw_os_error() {
         if raw_os_err == libc::EPERM {
@@ -124,11 +138,17 @@ fn bpf_create_map(map_type: u32,
                     rl.rlim_max = libc::RLIM_INFINITY;
                     rl.rlim_cur = rl.rlim_max;
                     if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
-                        ret = syscall!(BPF, bpf_cmd::BPF_MAP_CREATE,
-                                       &attr as *const _ as usize, ::std::mem::size_of::<bpf_attr>());
+                        ret = syscall!(
+                            BPF,
+                            bpf_cmd::BPF_MAP_CREATE,
+                            &attr as *const _ as usize,
+                            ::std::mem::size_of::<bpf_attr>()
+                        );
                     } else {
-                        println!("setrlimit() failed with errno={}", Error::last_os_error()
-                                 .raw_os_error().unwrap());
+                        println!(
+                            "setrlimit() failed with errno={}",
+                            Error::last_os_error().raw_os_error().unwrap()
+                        );
                         return -1;
                     }
                 }
@@ -138,13 +158,15 @@ fn bpf_create_map(map_type: u32,
     return ret as i32;
 }
 
-fn bpf_prog_load(prog_type: bpf_prog_type,
-                 insns: *const bpf_insn,
-                 prog_len: u32,
-                 license: *const u8,
-                 kern_version: u32,
-                 log_buf: *const u8,
-                 log_size: u32) -> i32 {
+fn bpf_prog_load(
+    prog_type: bpf_prog_type,
+    insns: *const bpf_insn,
+    prog_len: u32,
+    license: *const u8,
+    kern_version: u32,
+    log_buf: *const u8,
+    log_size: u32,
+) -> i32 {
     let insns_cnt = prog_len / (::std::mem::size_of::<bpf_insn>() as u32);
     let attr = bpf_attr::bpf_attr_prog_load(
         prog_type as u32,
@@ -158,9 +180,12 @@ fn bpf_prog_load(prog_type: bpf_prog_type,
     );
 
     let mut ret = unsafe {
-        syscall!(BPF, bpf_cmd::BPF_PROG_LOAD,
-                 &attr as *const _ as usize,
-                 ::std::mem::size_of::<bpf_attr>())
+        syscall!(
+            BPF,
+            bpf_cmd::BPF_PROG_LOAD,
+            &attr as *const _ as usize,
+            ::std::mem::size_of::<bpf_attr>()
+        )
     };
     if let Some(raw_os_err) = Error::last_os_error().raw_os_error() {
         if raw_os_err == libc::EPERM {
@@ -180,12 +205,17 @@ fn bpf_prog_load(prog_type: bpf_prog_type,
                     rl.rlim_max = libc::RLIM_INFINITY;
                     rl.rlim_cur = rl.rlim_max;
                     if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
-                        ret = syscall!(BPF, bpf_cmd::BPF_PROG_LOAD,
-                                       &attr as *const _ as usize,
-                                       ::std::mem::size_of::<bpf_attr>());
+                        ret = syscall!(
+                            BPF,
+                            bpf_cmd::BPF_PROG_LOAD,
+                            &attr as *const _ as usize,
+                            ::std::mem::size_of::<bpf_attr>()
+                        );
                     } else {
-                        println!("setrlimit() failed with errno={}", Error::last_os_error()
-                                 .raw_os_error().unwrap());
+                        println!(
+                            "setrlimit() failed with errno={}",
+                            Error::last_os_error().raw_os_error().unwrap()
+                        );
                         return -1;
                     }
                 }
@@ -204,7 +234,10 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
     if map_def.pinning == PIN_OBJECT_NS {
         return Err("Not support object pinning".to_string());
     } else if map_def.pinning == PIN_GLOBAL_NS || map_def.pinning == PIN_CUSTOM_NS {
-        if nix::sys::stat::stat(path).map_err(|e| format!("Stat fail: {}", e)).is_ok() {
+        if nix::sys::stat::stat(path)
+            .map_err(|e| format!("Stat fail: {}", e))
+            .is_ok()
+        {
             let fd = unsafe {
                 bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8)
             };
@@ -214,14 +247,22 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
             map.fd = fd as i32;
             return Ok(map);
         } else {
-            map.fd = bpf_create_map(map_def.type_, map_def.key_size, map_def.value_size, map_def.max_entries);
+            map.fd = bpf_create_map(
+                map_def.type_,
+                map_def.key_size,
+                map_def.value_size,
+                map_def.max_entries,
+            );
 
             if map.fd < 0 {
                 return Err("Fail to create map".to_string());
             }
 
             let fd = unsafe {
-                bpf_obj_pin(map.fd, path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8)
+                bpf_obj_pin(
+                    map.fd,
+                    path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8,
+                )
             };
             if fd < 0 {
                 return Err("Fail to pin object".to_string());
@@ -254,17 +295,29 @@ impl bpf_map_def {
                 let namespace = unsafe {
                     match ::std::ffi::CStr::from_ptr(self.namespace.as_ptr()).to_str() {
                         Ok(res) => res,
-                        Err(e) => return Err(format!("Fail to convert namespace to valid utf8 str: {}", e)),
+                        Err(e) => {
+                            return Err(format!(
+                                "Fail to convert namespace to valid utf8 str: {}",
+                                e
+                            ))
+                        }
                     }
                 };
                 if namespace == "" {
                     return Err(format!("map {} has empty namespace", map_name));
                 }
-                Ok([BPFFS_PATH, namespace, BPFDIRGLOBALS, map_name].iter().collect())
+                Ok(
+                    [BPFFS_PATH, namespace, BPFDIRGLOBALS, map_name]
+                        .iter()
+                        .collect(),
+                )
             }
             PIN_CUSTOM_NS => {
                 if pin_path == "" {
-                    return Err(format!("no pin path given for map {} with PIN_CUSTOM_NS", map_name))
+                    return Err(format!(
+                        "no pin path given for map {} with PIN_CUSTOM_NS",
+                        map_name
+                    ));
                 }
                 Ok([BPFFS_PATH, pin_path].iter().collect())
             }
@@ -275,12 +328,15 @@ impl bpf_map_def {
         }
     }
 
-    pub fn create_map_path(&self, map_name: &str, params: &SectionParams)
-                       -> Result<PathBuf, String> {
+    pub fn create_map_path(
+        &self,
+        map_name: &str,
+        params: &SectionParams,
+    ) -> Result<PathBuf, String> {
         let map_path = self.get_map_path(map_name, &params.pin_path)?;
 
         if bpf_map_def::validate_path(&map_path).is_err() {
-            return Err(format!("invalid path {:?}", &map_path))
+            return Err(format!("invalid path {:?}", &map_path));
         }
         create_pin_path(&map_path)?;
         return Ok(map_path);
@@ -288,7 +344,10 @@ impl bpf_map_def {
 
     pub fn validate_path(path: &Path) -> ::std::io::Result<PathBuf> {
         if !path.starts_with(BPFFS_PATH) {
-            Err(Error::new(ErrorKind::Other, "path doesn't start with bpffs path"))
+            Err(Error::new(
+                ErrorKind::Other,
+                "path doesn't start with bpffs path",
+            ))
         } else {
             path.canonicalize()
         }
@@ -296,16 +355,22 @@ impl bpf_map_def {
 }
 
 fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
-    let attr: perf_event_attr =
-        perf_event_attr::gen_perf_event_attr_open_map(perf_type_id::PERF_TYPE_SOFTWARE,
-                                                      perf_event_sample_format::PERF_SAMPLE_RAW,
-                                                      1,
-                                                      ::std::mem::size_of::<perf_event_attr>() as u32,
-                                                      perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT as u64);
+    let attr: perf_event_attr = perf_event_attr::gen_perf_event_attr_open_map(
+        perf_type_id::PERF_TYPE_SOFTWARE,
+        perf_event_sample_format::PERF_SAMPLE_RAW,
+        1,
+        ::std::mem::size_of::<perf_event_attr>() as u32,
+        perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT as u64,
+    );
     unsafe {
-        syscall!(PERF_EVENT_OPEN,
-                 &attr as *const _ as usize,
-                 pid, cpu, group_fd, flags) as i32
+        syscall!(
+            PERF_EVENT_OPEN,
+            &attr as *const _ as usize,
+            pid,
+            cpu,
+            group_fd,
+            flags
+        ) as i32
     }
 }
 
@@ -315,7 +380,7 @@ impl Module {
         match self.file.get_section("license") {
             Some(ref s) => match ::std::str::from_utf8(&s.data) {
                 Ok(res) => Ok(res.to_string()),
-                Err(e) => Err(format!("Fail to convert result to String: {}", e))
+                Err(e) => Err(format!("Fail to convert result to String: {}", e)),
             },
             None => Err("Failed to look up license section".to_string()),
         }
@@ -325,19 +390,22 @@ impl Module {
         match self.file.get_section("version") {
             Some(s) => {
                 if s.data.len() != 4 {
-                    return Err("version is not a __u32".to_string())
+                    return Err("version is not a __u32".to_string());
                 }
                 let mut buf = Cursor::new(&s.data);
                 match buf.read_u32::<LittleEndian>() {
                     Ok(res) => Ok(res),
-                    Err(_) => Err("Fail to read version".to_string())
+                    Err(_) => Err("Fail to read version".to_string()),
                 }
             }
             None => Err("Failed to look up version section".to_string()),
         }
     }
 
-    fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String, EbpfMap>, String> {
+    fn elf_read_maps(
+        &self,
+        params: &HashMap<String, SectionParams>,
+    ) -> Result<HashMap<String, EbpfMap>, String> {
         let mut maps: HashMap<String, EbpfMap> = HashMap::new();
         for sec in &self.file.sections {
             if sec.shdr.name.starts_with("maps/") {
@@ -345,8 +413,10 @@ impl Module {
             }
             let data = &sec.data;
             if data.len() != ::std::mem::size_of::<bpf_map_def>() {
-                return Err(format!("only one map with size {} bytes allowed per section (check bpf_map_def)",
-                                   ::std::mem::size_of::<bpf_map_def>()));
+                return Err(format!(
+                    "only one map with size {} bytes allowed per section (check bpf_map_def)",
+                    ::std::mem::size_of::<bpf_map_def>()
+                ));
             }
 
             let name = sec.shdr.name.trim_left_matches("maps/");
@@ -363,25 +433,33 @@ impl Module {
             if let Some(oldMap) = maps.get(name) {
                 return Err(format!("Duplicate map: {} and {}", oldMap.name, name));
             }
-            maps.insert(name.to_string(), EbpfMap {
-                name: name.to_string(),
-                m: map,
-                headers: Vec::new(),
-                page_count: 0,
-                pmu_fds: Vec::new(),
-            });
+            maps.insert(
+                name.to_string(),
+                EbpfMap {
+                    name: name.to_string(),
+                    m: map,
+                    headers: Vec::new(),
+                    page_count: 0,
+                    pmu_fds: Vec::new(),
+                },
+            );
         }
         Ok(maps)
     }
 
-    fn relocate(&self, data: &Vec<u8>, rdata: &Vec<u8>) -> Result<(), String>{
+    fn relocate(&self, data: &Vec<u8>, rdata: &Vec<u8>) -> Result<(), String> {
         let symtab_sec = match self.file.get_section(".symtab") {
             Some(s) => s,
             None => return Err("Fail to get symbol table".to_string()),
         };
         let symbols = match self.file.get_symbols(&symtab_sec) {
             Ok(res) => res,
-            Err(e) => return Err(format!("Fail to get symbols from symbol table sections: {:?}", e)),
+            Err(e) => {
+                return Err(format!(
+                    "Fail to get symbols from symbol table sections: {:?}",
+                    e
+                ))
+            }
         };
         loop {
             let (symbol, offset) = match self.file.ehdr.class {
@@ -393,13 +471,13 @@ impl Module {
                             let info = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 32;
                             (symbols[(sym_no - 1) as usize].clone(), off)
-                        },
+                        }
                         ELFDATA2MSB => {
                             let off = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
                             let info = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 32;
                             (symbols[(sym_no - 1) as usize].clone(), off)
-                        },
+                        }
                         _ => panic!("Unrecognize endian encoding"),
                     }
                 }
@@ -411,13 +489,13 @@ impl Module {
                             let info = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 8;
                             (symbols[(sym_no - 1) as usize].clone(), off as u64)
-                        },
+                        }
                         ELFDATA2MSB => {
                             let off = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
                             let info = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
                             let sym_no = info >> 8;
                             (symbols[(sym_no - 1) as usize].clone(), off as u64)
-                        },
+                        }
                         _ => panic!("Unrecognize endian encoding"),
                     }
                 }
@@ -428,27 +506,41 @@ impl Module {
             };
             if rinsn.code != (BPF_LD | BPF_IMM | BPF_DW) as u8 {
                 let symbol_sec = &self.file.sections[symbol.shndx as usize];
-                return Err(format!("invalid relocation: symbol name={}\nsymbol section: Name={}, Type={}, Flags={}",
-                                   symbol.name, symbol_sec.shdr.name, symbol_sec.shdr.shtype, symbol_sec.shdr.flags));
+                return Err(format!(
+                    "invalid relocation: symbol name={}\nsymbol section: Name={}, Type={}, Flags={}",
+                    symbol.name,
+                    symbol_sec.shdr.name,
+                    symbol_sec.shdr.shtype,
+                    symbol_sec.shdr.flags
+                ));
             }
 
             let symbol_sec = &self.file.sections[symbol.shndx as usize];
             if !symbol_sec.shdr.name.starts_with("maps/") {
-                return Err(format!("map location not supported: map {} is in section {} instead of \"maps/{}\"",
-                                   symbol.name, symbol_sec.shdr.name, symbol.name));
+                return Err(format!(
+                    "map location not supported: map {} is in section {} instead of \"maps/{}\"",
+                    symbol.name,
+                    symbol_sec.shdr.name,
+                    symbol.name
+                ));
             }
             let name = symbol_sec.shdr.name.trim_left_matches("maps/");
             let m = match self.maps.get(name) {
                 Some(res) => res,
-                None => return Err(format!("relocation error, symbol {} not found in section {}",
-                                           symbol.name, symbol_sec.shdr.name))
+                None => {
+                    return Err(format!(
+                        "relocation error, symbol {} not found in section {}",
+                        symbol.name,
+                        symbol_sec.shdr.name
+                    ))
+                }
             };
             rinsn.set_src_reg(BPF_PSEUDO_MAP_FD as u8);
             rinsn.imm = m.m.fd;
         }
     }
 
-    pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String>{
+    pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
         if self.file_name != "" {
             let path = PathBuf::from(&self.file_name);
             self.file = match elf::File::open_path(&path) {
@@ -471,7 +563,7 @@ impl Module {
         let mut processed = vec![false; self.file.sections.len()];
         for (idx, sec) in self.file.sections.iter().enumerate() {
             if processed[idx] {
-                continue
+                continue;
             }
 
             let data = &sec.data;
@@ -514,49 +606,74 @@ impl Module {
                 };
 
                 if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
-                    || is_tracepoint || is_sched_act || is_sched_cls {
+                    || is_tracepoint || is_sched_act || is_sched_cls
+                {
                     let rdata = &rsec.data;
                     if rdata.len() == 0 {
-                        continue
+                        continue;
                     }
 
                     self.relocate(data, rdata)?;
 
                     let insns = &rdata[0] as *const u8 as *const bpf_insn;
-                    let prog_fd = bpf_prog_load(progType, insns, rsec.shdr.size as u32,
-                                                license.as_ptr() as *const u8,
-                                                version, self.log.as_ptr() as *const u8, self.log.len() as u32);
+                    let prog_fd = bpf_prog_load(
+                        progType,
+                        insns,
+                        rsec.shdr.size as u32,
+                        license.as_ptr() as *const u8,
+                        version,
+                        self.log.as_ptr() as *const u8,
+                        self.log.len() as u32,
+                    );
                     if prog_fd < 0 {
-                        return Err(format!("error while loading {}: \n{}",
-                                           sec_name, ::std::str::from_utf8(&self.log).unwrap()));
+                        return Err(format!(
+                            "error while loading {}: \n{}",
+                            sec_name,
+                            ::std::str::from_utf8(&self.log).unwrap()
+                        ));
                     }
                     if is_kprobe || is_kretprobe {
-                        self.probes.insert(sec_name.to_string(), Kprobe {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                            efd: -1
-                        });
+                        self.probes.insert(
+                            sec_name.to_string(),
+                            Kprobe {
+                                insns: insns as usize,
+                                fd: prog_fd,
+                                efd: -1,
+                            },
+                        );
                     } else if is_cgroup_sock || is_cgroup_skb {
-                        self.cgroup_programs.insert(sec_name.to_string(), CgroupProgram {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                        });
+                        self.cgroup_programs.insert(
+                            sec_name.to_string(),
+                            CgroupProgram {
+                                insns: insns as usize,
+                                fd: prog_fd,
+                            },
+                        );
                     } else if is_socket_filter {
-                        self.socket_filters.insert(sec_name.to_string(), SocketFilter {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                        });
+                        self.socket_filters.insert(
+                            sec_name.to_string(),
+                            SocketFilter {
+                                insns: insns as usize,
+                                fd: prog_fd,
+                            },
+                        );
                     } else if is_tracepoint {
-                        self.tracepoint_programs.insert(sec_name.to_string(), TracepointProgram {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                            efd: -1,
-                        });
+                        self.tracepoint_programs.insert(
+                            sec_name.to_string(),
+                            TracepointProgram {
+                                insns: insns as usize,
+                                fd: prog_fd,
+                                efd: -1,
+                            },
+                        );
                     } else if is_sched_cls || is_sched_act {
-                        self.sched_programs.insert(sec_name.to_string(), SchedProgram {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                        });
+                        self.sched_programs.insert(
+                            sec_name.to_string(),
+                            SchedProgram {
+                                insns: insns as usize,
+                                fd: prog_fd,
+                            },
+                        );
                     }
                 }
             }
@@ -564,7 +681,7 @@ impl Module {
 
         for (idx, sec) in self.file.sections.iter().enumerate() {
             if processed[idx] {
-                continue
+                continue;
             }
 
             let sec_name = &sec.shdr.name;
@@ -598,61 +715,90 @@ impl Module {
             };
 
             if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
-                || is_tracepoint || is_sched_act || is_sched_cls {
+                || is_tracepoint || is_sched_act || is_sched_cls
+            {
                 let data = &sec.data;
                 if data.len() == 0 {
-                    continue
+                    continue;
                 }
 
                 let insns = &data[0] as *const u8 as *const bpf_insn;
-                let prog_fd = bpf_prog_load(progType, insns, sec.shdr.size as u32,
-                                            license.as_ptr() as *const u8,
-                                            version, self.log.as_ptr() as *const u8, self.log.len() as u32);
+                let prog_fd = bpf_prog_load(
+                    progType,
+                    insns,
+                    sec.shdr.size as u32,
+                    license.as_ptr() as *const u8,
+                    version,
+                    self.log.as_ptr() as *const u8,
+                    self.log.len() as u32,
+                );
                 if prog_fd < 0 {
-                    return Err(format!("error while loading {}: \n{}",
-                                       sec_name, ::std::str::from_utf8(&self.log).unwrap()));
+                    return Err(format!(
+                        "error while loading {}: \n{}",
+                        sec_name,
+                        ::std::str::from_utf8(&self.log).unwrap()
+                    ));
                 }
                 if is_kprobe || is_kretprobe {
-                    self.probes.insert(sec_name.to_string(), Kprobe {
-                        insns: insns as usize,
-                        fd: prog_fd,
-                        efd: -1
-                    });
+                    self.probes.insert(
+                        sec_name.to_string(),
+                        Kprobe {
+                            insns: insns as usize,
+                            fd: prog_fd,
+                            efd: -1,
+                        },
+                    );
                 } else if is_cgroup_sock || is_cgroup_skb {
-                    self.cgroup_programs.insert(sec_name.to_string(), CgroupProgram {
-                        insns: insns as usize,
-                        fd: prog_fd,
-                    });
+                    self.cgroup_programs.insert(
+                        sec_name.to_string(),
+                        CgroupProgram {
+                            insns: insns as usize,
+                            fd: prog_fd,
+                        },
+                    );
                 } else if is_socket_filter {
-                    self.socket_filters.insert(sec_name.to_string(), SocketFilter {
-                        insns: insns as usize,
-                        fd: prog_fd,
-                    });
+                    self.socket_filters.insert(
+                        sec_name.to_string(),
+                        SocketFilter {
+                            insns: insns as usize,
+                            fd: prog_fd,
+                        },
+                    );
                 } else if is_tracepoint {
-                    self.tracepoint_programs.insert(sec_name.to_string(), TracepointProgram {
-                        insns: insns as usize,
-                        fd: prog_fd,
-                        efd: -1,
-                    });
+                    self.tracepoint_programs.insert(
+                        sec_name.to_string(),
+                        TracepointProgram {
+                            insns: insns as usize,
+                            fd: prog_fd,
+                            efd: -1,
+                        },
+                    );
                 } else if is_sched_cls || is_sched_act {
-                    self.sched_programs.insert(sec_name.to_string(), SchedProgram {
-                        insns: insns as usize,
-                        fd: prog_fd,
-                    });
+                    self.sched_programs.insert(
+                        sec_name.to_string(),
+                        SchedProgram {
+                            insns: insns as usize,
+                            fd: prog_fd,
+                        },
+                    );
                 }
             }
         }
         return self.initialize_perf_maps(params);
     }
 
-    fn initialize_perf_maps(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
+    fn initialize_perf_maps(
+        &mut self,
+        params: &HashMap<String, SectionParams>,
+    ) -> Result<(), String> {
         for (name, m) in self.maps.iter_mut() {
             if m.m.def.type_ != bpf_map_type::BPF_MAP_TYPE_PERF_EVENT_ARRAY as u32 {
                 continue;
             }
 
             let pg_size = match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE)
-                .map_err(|e| format!("Fail to get page size: {}", e))? {
+                .map_err(|e| format!("Fail to get page size: {}", e))?
+            {
                 Some(res) => res,
                 None => return Err("Fail to get page size".to_string()),
             };
@@ -664,9 +810,13 @@ impl Module {
                     continue;
                 }
                 if param.perf_ring_buffer_page_count > 0 {
-                    if param.perf_ring_buffer_page_count & (param.perf_ring_buffer_page_count - 1) != 0 {
-                        return Err(format!("number of pages {} must be strictly positive and a power of 2",
-                                           param.perf_ring_buffer_page_count));
+                    if param.perf_ring_buffer_page_count & (param.perf_ring_buffer_page_count - 1)
+                        != 0
+                    {
+                        return Err(format!(
+                            "number of pages {} must be strictly positive and a power of 2",
+                            param.perf_ring_buffer_page_count
+                        ));
                     }
                     m.page_count = param.perf_ring_buffer_page_count as u32;
                 }
@@ -682,27 +832,38 @@ impl Module {
                 let mmap_size = pg_size * (m.page_count as i64 + 1);
 
                 let base = unsafe {
-                    nix::sys::mman::mmap(::std::ptr::null_mut(), mmap_size as usize,
-                                         nix::sys::mman::PROT_READ|nix::sys::mman::PROT_WRITE,
-                                         nix::sys::mman::MAP_SHARED, pmufd, 0)
-                        .map_err(|e| format!("Fail to mmap: {}", e))?
+                    nix::sys::mman::mmap(
+                        ::std::ptr::null_mut(),
+                        mmap_size as usize,
+                        nix::sys::mman::PROT_READ | nix::sys::mman::PROT_WRITE,
+                        nix::sys::mman::MAP_SHARED,
+                        pmufd,
+                        0,
+                    ).map_err(|e| format!("Fail to mmap: {}", e))?
                 };
 
-                let ret = unsafe {
-                    syscall!(IOCTL, pmufd, PERF_EVENT_IOC_ENABLE, 0)
-                };
+                let ret = unsafe { syscall!(IOCTL, pmufd, PERF_EVENT_IOC_ENABLE, 0) };
                 if ret != 0 {
-                    return Err(format!("Error enabling perf event: {}",
-                                       Error::last_os_error().raw_os_error().unwrap()));
+                    return Err(format!(
+                        "Error enabling perf event: {}",
+                        Error::last_os_error().raw_os_error().unwrap()
+                    ));
                 }
 
                 let ret = unsafe {
-                    bpf_update_elem(m.m.fd, cpu as *mut u32 as *mut _,
-                                          &pmufd as *const _ as *mut _,
-                                          BPF_ANY as u64)
+                    bpf_update_elem(
+                        m.m.fd,
+                        cpu as *mut u32 as *mut _,
+                        &pmufd as *const _ as *mut _,
+                        BPF_ANY as u64,
+                    )
                 };
                 if ret != 0 {
-                    return Err(format!("Cannot assign perf fd to map {} cpu {})", name, cpu));
+                    return Err(format!(
+                        "Cannot assign perf fd to map {} cpu {})",
+                        name,
+                        cpu
+                    ));
                 }
                 m.pmu_fds.push(pmufd);
                 m.headers.push(base as *mut perf_event_mmap_page);

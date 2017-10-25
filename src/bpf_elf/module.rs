@@ -1,15 +1,15 @@
-extern crate nix;
-extern crate libc;
 extern crate bcc_sys;
+extern crate libc;
+extern crate nix;
 
 use std::collections::HashMap;
 use bcc_sys::bccapi::*;
 use elf;
 use bpf_elf::elf::EbpfMap;
-use std::fs::{OpenOptions, File};
+use std::fs::{File, OpenOptions};
 use std::io::{Error, ErrorKind};
-use perf_event_bindings::{perf_type_id, perf_event_attr, PERF_FLAG_FD_CLOEXEC,
-                          perf_event_sample_format};
+use perf_event_bindings::{perf_event_attr, perf_event_sample_format, perf_type_id,
+                          PERF_FLAG_FD_CLOEXEC};
 use bpf_elf::perf_event::{PERF_EVENT_IOC_ENABLE, PERF_EVENT_IOC_SET_BPF};
 use std::str::FromStr;
 use std::io::{Read, Write};
@@ -70,22 +70,40 @@ pub struct CloseOptions {
 const kprobe_events_filename: &'static str = "/sys/kernel/debug/tracing/kprobe_events";
 
 impl CgroupProgram {
-    pub fn attach_cgroup_program(&self, cgroup_path: &str, attach_type: bpf_attach_type) -> Result<(), String> {
-        let f = File::open(cgroup_path).map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
+    pub fn attach_cgroup_program(
+        &self,
+        cgroup_path: &str,
+        attach_type: bpf_attach_type,
+    ) -> Result<(), String> {
+        let f = File::open(cgroup_path)
+            .map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
         let cgroup_fd = f.as_raw_fd();
         let ret = bpf_prog_attach(self.fd as u32, cgroup_fd as u32, attach_type);
         if ret < 0 {
-            return Err(format!("Failed to attach prog to cgroup {}: {}", cgroup_path, nix::errno::errno()));
+            return Err(format!(
+                "Failed to attach prog to cgroup {}: {}",
+                cgroup_path,
+                nix::errno::errno()
+            ));
         }
         Ok(())
     }
 
-    pub fn detach_cgroup_program(&self, cgroup_path: &str, attach_type: bpf_attach_type) -> Result<(), String>{
-        let f = File::open(cgroup_path).map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
+    pub fn detach_cgroup_program(
+        &self,
+        cgroup_path: &str,
+        attach_type: bpf_attach_type,
+    ) -> Result<(), String> {
+        let f = File::open(cgroup_path)
+            .map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
         let cgroup_fd = f.as_raw_fd();
         let ret = bpf_prog_detach(self.fd as u32, cgroup_fd as u32, attach_type);
         if ret < 0 {
-            return Err(format!("Failed to detach prog to cgroup {}: {}", cgroup_path, nix::errno::errno()));
+            return Err(format!(
+                "Failed to detach prog to cgroup {}: {}",
+                cgroup_path,
+                nix::errno::errno()
+            ));
         }
         Ok(())
     }
@@ -93,81 +111,112 @@ impl CgroupProgram {
 
 impl SocketFilter {
     unsafe fn bpf_attach_socket(sock: i32, fd: i32) -> i32 {
-        libc::setsockopt(sock, libc::SOL_SOCKET, libc::SO_ATTACH_BPF,
-                         &fd as *const i32 as *const _, ::std::mem::size_of::<i32>() as u32)
+        libc::setsockopt(
+            sock,
+            libc::SOL_SOCKET,
+            libc::SO_ATTACH_BPF,
+            &fd as *const i32 as *const _,
+            ::std::mem::size_of::<i32>() as u32,
+        )
     }
 
     unsafe fn bpf_detach_socket(sock: i32) -> i32 {
-        libc::setsockopt(sock, libc::SOL_SOCKET, libc::SO_DETACH_BPF,
-                         ::std::ptr::null(), ::std::mem::size_of::<i32>() as u32)
+        libc::setsockopt(
+            sock,
+            libc::SOL_SOCKET,
+            libc::SO_DETACH_BPF,
+            ::std::ptr::null(),
+            ::std::mem::size_of::<i32>() as u32,
+        )
     }
 
     pub fn attach_socket_filter(&self, sock_fd: i32) -> Result<(), String> {
-        let ret = unsafe {
-            SocketFilter::bpf_attach_socket(sock_fd, self.fd)
-        };
+        let ret = unsafe { SocketFilter::bpf_attach_socket(sock_fd, self.fd) };
         if ret < 0 {
-            return Err(format!("Error attaching BPF socket filter: {}", nix::errno::errno()))
+            return Err(format!(
+                "Error attaching BPF socket filter: {}",
+                nix::errno::errno()
+            ));
         }
         Ok(())
     }
 
     pub fn detach_socket_filter(sock_fd: i32) -> Result<(), String> {
-        let ret = unsafe {
-            SocketFilter::bpf_detach_socket(sock_fd)
-        };
+        let ret = unsafe { SocketFilter::bpf_detach_socket(sock_fd) };
         if ret < 0 {
-            return Err(format!("Error detaching BPF socket filter: {}", nix::errno::errno()))
+            return Err(format!(
+                "Error detaching BPF socket filter: {}",
+                nix::errno::errno()
+            ));
         }
         Ok(())
     }
 }
 
 impl Kprobe {
-    fn perf_event_open_tracepoint(id: u64, prog_fd: i32) -> Result<i32, String>{
-        let efd = TracepointProgram::perf_event_open_tracepoint(id, -1, 0, -1, PERF_FLAG_FD_CLOEXEC as u64);
+    fn perf_event_open_tracepoint(id: u64, prog_fd: i32) -> Result<i32, String> {
+        let efd = TracepointProgram::perf_event_open_tracepoint(
+            id,
+            -1,
+            0,
+            -1,
+            PERF_FLAG_FD_CLOEXEC as u64,
+        );
         if efd < 0 {
             return Err(format!("perf event open error: {}", nix::errno::errno()));
         }
-        let ret = unsafe {
-            syscall!(IOCTL, efd, PERF_EVENT_IOC_ENABLE, 0)
-        };
+        let ret = unsafe { syscall!(IOCTL, efd, PERF_EVENT_IOC_ENABLE, 0) };
         if ret != 0 {
-            return Err(format!("Error enabling perf event: {}", nix::errno::errno()));
+            return Err(format!(
+                "Error enabling perf event: {}",
+                nix::errno::errno()
+            ));
         }
-        let ret = unsafe {
-            syscall!(IOCTL, efd, PERF_EVENT_IOC_SET_BPF, prog_fd, 0)
-        };
+        let ret = unsafe { syscall!(IOCTL, efd, PERF_EVENT_IOC_SET_BPF, prog_fd, 0) };
         if ret != 0 {
-            return Err(format!("Error attaching bpf program to perf event: {}", nix::errno::errno()));
+            return Err(format!(
+                "Error attaching bpf program to perf event: {}",
+                nix::errno::errno()
+            ));
         }
         Ok(efd)
     }
 
-    fn write_kprobe_event(probe_type: &str, event_name: &str, func_name: &str, maxactive_str: &str)
-                          -> Result<i32, ::std::io::Error> {
+    fn write_kprobe_event(
+        probe_type: &str,
+        event_name: &str,
+        func_name: &str,
+        maxactive_str: &str,
+    ) -> Result<i32, ::std::io::Error> {
         let mut f = OpenOptions::new().append(true).open(kprobe_events_filename)?;
-        let cmd = format!("{}{}:{} {}", probe_type, maxactive_str, event_name, func_name);
+        let cmd = format!(
+            "{}{}:{} {}",
+            probe_type,
+            maxactive_str,
+            event_name,
+            func_name
+        );
         f.write_all(cmd.as_bytes())?;
 
-        let mut kprobeIdFile = match OpenOptions::new().read(true)
-            .open(format!("/sys/kernel/debug/tracing/events/kprobes/{}/id", event_name)) {
-                Ok(res) => res,
-                Err(e) => {
-                    if e.kind() == ErrorKind::NotFound {
-                        return Err(Error::new(ErrorKind::Other, "Can't find kprobe id"));
-                    } else {
-                        return Err(e)
-                    }
-                }
-            };
+        let mut kprobeIdFile = match OpenOptions::new().read(true).open(format!(
+            "/sys/kernel/debug/tracing/events/kprobes/{}/id",
+            event_name
+        )) {
+            Ok(res) => res,
+            Err(e) => if e.kind() == ErrorKind::NotFound {
+                return Err(Error::new(ErrorKind::Other, "Can't find kprobe id"));
+            } else {
+                return Err(e);
+            },
+        };
         let mut buffer = String::new();
         kprobeIdFile.read_to_string(&mut buffer)?;
-        let kprobe_id = i32::from_str(buffer.trim()).map_err(|e| Error::new(ErrorKind::Other, format!("{}", e)))?;
+        let kprobe_id = i32::from_str(buffer.trim())
+            .map_err(|e| Error::new(ErrorKind::Other, format!("{}", e)))?;
         return Ok(kprobe_id);
     }
 
-    pub fn enable_kprobe(&mut self, sec_name: &str, maxactive: i32) -> Result<(), String>{
+    pub fn enable_kprobe(&mut self, sec_name: &str, maxactive: i32) -> Result<(), String> {
         let prog_fd = self.fd;
         let (probe_type, func_name, maxactive_str) = if sec_name.starts_with("kretprobe/") {
             let probe_type = "r";
@@ -184,16 +233,18 @@ impl Kprobe {
             (probe_type, func_name, "".to_string())
         };
         let event_name = format!("{}{}", probe_type, func_name);
-        let kprobeid_res = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, &maxactive_str);
+        let kprobeid_res =
+            Kprobe::write_kprobe_event(probe_type, &event_name, func_name, &maxactive_str);
         let kprobeid;
         if let Err(e) = kprobeid_res {
-            if e.kind() == ErrorKind::Other && e.get_ref()
-                .map_or(false, |inner_err| inner_err.description() == "Can't find kprobe id") {
-                    kprobeid = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, "")
-                        .map_err(|e| format!("Fail to write kprobe event: {}", e))?;
-                } else {
-                    return Err(format!("Fail to write kprobe event: {}", e));
-                }
+            if e.kind() == ErrorKind::Other && e.get_ref().map_or(false, |inner_err| {
+                inner_err.description() == "Can't find kprobe id"
+            }) {
+                kprobeid = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, "")
+                    .map_err(|e| format!("Fail to write kprobe event: {}", e))?;
+            } else {
+                return Err(format!("Fail to write kprobe event: {}", e));
+            }
         } else {
             kprobeid = kprobeid_res.unwrap();
         }
@@ -202,12 +253,16 @@ impl Kprobe {
     }
 
     pub fn disable_kprobe(event_name: &str) -> Result<(), String> {
-        let mut f = OpenOptions::new().append(true).open(kprobe_events_filename)
-            .map_err(|e| format!("Fail to open file {}: {}", kprobe_events_filename, e))?;
+        let mut f = OpenOptions::new()
+            .append(true)
+            .open(kprobe_events_filename)
+            .map_err(|e| {
+                format!("Fail to open file {}: {}", kprobe_events_filename, e)
+            })?;
         let cmd = format!("-:{}\n", event_name);
         if let Err(e) = f.write_all(cmd.as_bytes()) {
             if e.kind() == ErrorKind::NotFound {
-                return Ok(())
+                return Ok(());
             } else {
                 return Err(format!("Cannot write {} to kprobe_events: {}", cmd, e));
             }
@@ -217,28 +272,46 @@ impl Kprobe {
 }
 
 impl TracepointProgram {
-    fn perf_event_open_tracepoint(tracepoint_id: u64, pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
-        let attr: perf_event_attr =
-            perf_event_attr::gen_perf_event_attr_open_tracepoint(perf_type_id::PERF_TYPE_TRACEPOINT,
-                                                                 perf_event_sample_format::PERF_SAMPLE_RAW,
-                                                                 1,
-                                                                 1,
-                                                                 tracepoint_id as u64);
+    fn perf_event_open_tracepoint(
+        tracepoint_id: u64,
+        pid: i32,
+        cpu: u32,
+        group_fd: i32,
+        flags: u64,
+    ) -> i32 {
+        let attr: perf_event_attr = perf_event_attr::gen_perf_event_attr_open_tracepoint(
+            perf_type_id::PERF_TYPE_TRACEPOINT,
+            perf_event_sample_format::PERF_SAMPLE_RAW,
+            1,
+            1,
+            tracepoint_id as u64,
+        );
         unsafe {
-            syscall!(PERF_EVENT_OPEN,
-                     &attr as *const _ as usize,
-                     pid, cpu, group_fd, flags) as i32
+            syscall!(
+                PERF_EVENT_OPEN,
+                &attr as *const _ as usize,
+                pid,
+                cpu,
+                group_fd,
+                flags
+            ) as i32
         }
     }
 
     fn write_tracepoint_event(category: &str, name: &str) -> Result<i32, String> {
         let tracepoint_f_str = format!("/sys/kernel/debug/tracing/events/{}/{}/id", category, name);
-        let mut tracepoint_file = OpenOptions::new().read(true)
+        let mut tracepoint_file = OpenOptions::new()
+            .read(true)
             .open(&tracepoint_f_str)
-            .map_err(|e| format!("Cannot open tracepoint id {}: {}", &tracepoint_f_str, e))?;
+            .map_err(|e| {
+                format!("Cannot open tracepoint id {}: {}", &tracepoint_f_str, e)
+            })?;
         let mut buffer = String::new();
-        tracepoint_file.read_to_string(&mut buffer).map_err(|e| format!("Cannot read tracepoint file: {}", e))?;
-        let tracepoint_id = i32::from_str(buffer.trim()).map_err(|e| format!("Invalid tracepoint id: {}", e))?;
+        tracepoint_file
+            .read_to_string(&mut buffer)
+            .map_err(|e| format!("Cannot read tracepoint file: {}", e))?;
+        let tracepoint_id =
+            i32::from_str(buffer.trim()).map_err(|e| format!("Invalid tracepoint id: {}", e))?;
         return Ok(tracepoint_id);
     }
 
@@ -268,12 +341,15 @@ impl Module {
     /// enabled, this is max(10, 2*NR_CPUS); otherwise, it is NR_CPUS.
     /// For kprobes, maxactive is ignored.
     pub fn enable_kprobe(&mut self, sec_name: &str, maxactive: i32) -> Result<(), String> {
-        let probe = self.probes.get_mut(sec_name).ok_or(format!("no such kprobe {}", sec_name))?;
+        let probe = self.probes
+            .get_mut(sec_name)
+            .ok_or(format!("no such kprobe {}", sec_name))?;
         return probe.enable_kprobe(sec_name, maxactive);
     }
 
     pub fn enable_tracepoint(&mut self, sec_name: &str) -> Result<(), String> {
-        let prog = self.tracepoint_programs.get_mut(sec_name)
+        let prog = self.tracepoint_programs
+            .get_mut(sec_name)
             .ok_or(format!("No such tracepoint program {}", sec_name))?;
         return prog.enable_tracepoint(sec_name);
     }
@@ -341,7 +417,10 @@ impl Module {
         Ok(())
     }
 
-    pub fn close_maps<'a>(&self, options: Option<&'a HashMap<String, CloseOptions>>) -> Result<(), String> {
+    pub fn close_maps<'a>(
+        &self,
+        options: Option<&'a HashMap<String, CloseOptions>>,
+    ) -> Result<(), String> {
         for (name, m) in &self.maps {
             if let Some(ops) = options {
                 if let Some(option) = ops.get(&format!("maps/{}", name)) {
@@ -351,7 +430,9 @@ impl Module {
                             bpf_elf::elf::PIN_CUSTOM_NS => &option.pin_path,
                             bpf_elf::elf::PIN_GLOBAL_NS => "",
                             bpf_elf::elf::PIN_OBJECT_NS => {
-                                return Err("unpinning with PIN_OBJECT_NS is to be implemented".to_string())
+                                return Err(
+                                    "unpinning with PIN_OBJECT_NS is to be implemented".to_string(),
+                                )
                             }
                             _ => return Err(format!("Unrecognized pinning: {}", map_def.pinning)),
                         };
@@ -386,7 +467,10 @@ impl Module {
         return self.close_ext(None);
     }
 
-    pub fn close_ext<'a>(&mut self, options: Option<&'a HashMap<String, CloseOptions>>) -> Result<(), String>{
+    pub fn close_ext<'a>(
+        &mut self,
+        options: Option<&'a HashMap<String, CloseOptions>>,
+    ) -> Result<(), String> {
         self.close_maps(options)?;
         self.close_probes()?;
         self.close_cgroup_programs()?;

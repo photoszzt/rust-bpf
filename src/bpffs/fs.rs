@@ -13,27 +13,31 @@ pub fn is_mounted() -> Result<bool, String> {
     let mut data: libc::statfs = unsafe { ::std::mem::zeroed() };
     match nix::sys::statfs::statfs(BPFFS_PATH, &mut data) {
         Ok(_) => Ok(data.f_type == FS_MAGIC_BPFFS as i64),
-        Err(res) => {
-            Err(format!("Cannot statfs {}: {}", BPFFS_PATH, res.description()))
-        }
+        Err(res) => Err(format!(
+            "Cannot statfs {}: {}",
+            BPFFS_PATH,
+            res.description()
+        )),
     }
 }
 
 pub fn mounted() -> Result<(), String> {
     match is_mounted() {
-        Ok(res) => {
-            if !res {
-                if let Err(e) = nix::mount::mount(Some(BPFFS_PATH), BPFFS_PATH, Some(FSTYPE),
-                                                  nix::mount::MsFlags::from_bits_truncate(0),
-                                                  NONE) {
-                    Err(format!("Cannot mount {}: {}", BPFFS_PATH, e))
-                } else {
-                    Ok(())
-                }
+        Ok(res) => if !res {
+            if let Err(e) = nix::mount::mount(
+                Some(BPFFS_PATH),
+                BPFFS_PATH,
+                Some(FSTYPE),
+                nix::mount::MsFlags::from_bits_truncate(0),
+                NONE,
+            ) {
+                Err(format!("Cannot mount {}: {}", BPFFS_PATH, e))
             } else {
                 Ok(())
             }
+        } else {
+            Ok(())
         },
-        Err(e) => Err(e)
+        Err(e) => Err(e),
     }
 }

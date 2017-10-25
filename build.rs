@@ -9,7 +9,10 @@ fn build_ebpf_perf_bindings() {
     let std_kernel_path = match std::env::var("STD_KERNEL_PATH") {
         Ok(string) => string,
         Err(error) => {
-            panic!("Missing environment variable STD_KERNEL_PATH, run from Makefile: {:?}", error);
+            panic!(
+                "Missing environment variable STD_KERNEL_PATH, run from Makefile: {:?}",
+                error
+            );
         }
     };
 
