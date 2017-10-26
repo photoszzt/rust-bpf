@@ -1,11 +1,13 @@
 extern crate regex;
 
-use bcc_sys::bccapi::{bcc_resolve_symname, bcc_symbol, bcc_symbol_option};
+use bcc_sys::bccapi::{bcc_resolve_symname, bcc_symbol, bcc_symbol_option,
+bcc_foreach_function_symbol};
 use std::os::raw::c_char;
 use std::ffi::CString;
 use regex::Regex;
 use std::sync::Mutex;
 use std::collections::HashMap;
+use std::ffi::CStr;
 
 #[repr(C)]
 #[derive(Debug, Default, Clone)]
@@ -29,7 +31,7 @@ lazy_static! {
 /// returns the file and offset to locate symname in module
 pub fn resolve_symbol_path(
     module: &str,
-    symname: &str,
+    symname: *const i8,
     addr: u64,
     pid: i32,
 ) -> Result<(*const c_char, u64), String> {
@@ -40,14 +42,10 @@ pub fn resolve_symbol_path(
         Ok(r) => r,
         Err(e) => return Err(format!("Fail to convert {} to c string: {}", module, e)),
     };
-    let symname_c = match CString::new(symname) {
-        Ok(r) => r,
-        Err(e) => return Err(format!("Fail to convert {} to c string: {}", symname, e)),
-    };
     let ret = unsafe {
         bcc_resolve_symname(
             module_c.as_ptr(),
-            symname_c.as_ptr(),
+            symname,
             addr,
             pid,
             &mut symbol_option as *mut _,
@@ -58,8 +56,7 @@ pub fn resolve_symbol_path(
         Ok((symbol.module, symbol.offset))
     } else {
         Err(format!(
-            "Unable to locate symbol {} in module {}",
-            symname,
+            "Unable to locate symbol in module {}",
             module
         ))
     }
@@ -78,7 +75,7 @@ fn get_user_symbols_and_address<'a>(module: &str) -> Result<&'a Vec<SymbolAddres
         Err(e) => return Err(format!("Fail to convert {} to c string: {}", module, e)),
     };
     let res = unsafe {
-        bcc_foreach_symbol(module_c.as_ptr(), Some(foreach_symbol_callback))
+        bcc_foreach_function_symbol(module_c.as_ptr(), Some(foreach_symbol_callback))
     };
     if res < 0 {
         return Err(format!("Unable to list symbols for {}", module));
@@ -92,6 +89,7 @@ fn get_user_symbols_and_address<'a>(module: &str) -> Result<&'a Vec<SymbolAddres
 unsafe extern "C" fn foreach_symbol_callback(symname: *const ::std::os::raw::c_char,
                                              addr: u64) -> ::std::os::raw::c_int {
     let list = symbol_cache.get_mut(symbol_cache.current_module);
+    
     list.push(SymbolAddress {
         name: symname,
         addr: addr,

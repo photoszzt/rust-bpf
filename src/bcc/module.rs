@@ -8,10 +8,10 @@ use std::ffi::{CStr, CString};
 use bcc_sys::bccapi::{bpf_attach_kprobe, bpf_detach_kprobe, bpf_detach_uprobe, bpf_function_size,
                       bpf_function_start, bpf_module_create_c_from_string, bpf_module_destroy,
                       bpf_module_kern_version, bpf_module_license, bpf_probe_attach_type,
-                      bpf_prog_load, perf_reader_free, bpf_attach_uprobe};
+                      bpf_prog_load, perf_reader_free, bpf_attach_uprobe, };
 use std::os::raw::{c_void, c_char};
 use regex::Regex;
-use bcc::symbol::resolve_symbol_path;
+use bcc::symbol::{resolve_symbol_path, match_user_symbols};
 
 #[derive(Debug, Default)]
 pub struct Module {
@@ -216,14 +216,30 @@ impl Module {
     // The 'name' argument can be given as either a full library path (/usr/lib/..),
     // a library without the lib prefix, or as a binary with full path (/bin/bash)
     // A pid can be given to attach to, or -1 to attach to all processes.
-    pub fn attach_uprobe(&self, name: &str, symbol: &str, fd: i32, pid: i32)
+    pub fn attach_uprobe(&self, name: &str, symbol: *const i8, fd: i32, pid: i32)
        -> Result<(), String> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
             CStr::from_ptr(path).to_str().map_err(|e| format!("Fail to convert path to Rust str: {}", e))
         }?;
         let ev_name = format!("p_{}_0x{}", UPROBE_REGEX.replace_all(path_str, "_"), addr);
-        self.attach_uprobe_helper(ev_name, bpf_probe_attach_type::BPF_PROBE_ENTRY, path, addr, fd, pid)
+        self.attach_uprobe_helper(ev_name,
+        bpf_probe_attach_type::BPF_PROBE_ENTRY, path, addr, fd, pid)
+    }
+
+    // attaches a uretprobe fd to the symbol in the library or binary 'name'
+    // The 'name' argument can be given as either a full library path (/usr/lib/..),
+    // a library without the lib prefix, or as a binary with full path (/bin/bash)
+    // A pid can be given to attach to, or -1 to attach to all processes
+    pub fn attach_uretprobe(&self, name: &str, symbol: *const i8, fd: i32, pid: i32)
+       -> Result<(), String> {
+        let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
+        let path_str = unsafe {
+            CStr::from_ptr(path).to_str().map_err(|e| format!("Fail to convert path to Rust str: {}", e))
+        }?;
+        let ev_name = format!("p_{}_0x{}", UPROBE_REGEX.replace_all(path_str, "_"), addr);
+        self.attach_uprobe_helper(ev_name,
+        bpf_probe_attach_type::BPF_PROBE_RETURN, path, addr, fd, pid)
     }
 
     // attaches a uprobe fd to all symbols in the library or binary
@@ -232,6 +248,13 @@ impl Module {
     // a library without the lib prefix, or as a binary with full path (/bin/bash)
     // A pid can be given, or -1 to attach to all processes
     pub fn attach_matching_uprobes(&self, name: &str, match_str: &str, fd: i32, pid: i32) -> Result<(), String> {
+        let symbols = match_user_symbols(name, match_str)?;
+        if symbols.len() == 0 {
+            return Err(format!("no symbols matching {} for {} found", match_str, name));
+        }
+        for symbol in symbols {
+            self.attach_uprobe(name, symbol.name, fd, pid)?;
+        }
         Ok(())
     }
 }
