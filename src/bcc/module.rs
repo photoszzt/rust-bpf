@@ -8,7 +8,10 @@ use std::ffi::{CStr, CString};
 use bcc_sys::bccapi::{bpf_attach_kprobe, bpf_detach_kprobe, bpf_detach_uprobe, bpf_function_size,
                       bpf_function_start, bpf_module_create_c_from_string, bpf_module_destroy,
                       bpf_module_kern_version, bpf_module_license, bpf_probe_attach_type,
-                      bpf_prog_load, perf_reader_free, bpf_attach_uprobe, };
+                      bpf_prog_load, perf_reader_free, bpf_attach_uprobe, bpf_num_tables,
+                      bpf_table_key_size_id, bpf_table_leaf_size_id, bpf_table_key_desc_id,
+                      bpf_table_leaf_desc_id, bpf_attach_xdp, bpf_table_id, bpf_table_name,
+                      bpf_table_fd_id};
 use std::os::raw::{c_void, c_char};
 use regex::Regex;
 use bcc::symbol::{resolve_symbol_path, match_user_symbols};
@@ -19,6 +22,16 @@ pub struct Module {
     funcs: HashMap<CString, i32>,
     kprobes: HashMap<CString, usize>,
     uprobes: HashMap<CString, usize>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct TableDesc {
+    name: String,
+    fd: i32,
+    key_size: u64,
+    leaf_size: u64,
+    key_desc: String,
+    leaf_desc: String,
 }
 
 lazy_static! {
@@ -197,7 +210,7 @@ impl Module {
         )
     }
 
-    fn attach_uprobe_helper(&self, ev_name: String, attach_type: bpf_probe_attach_type,
+    fn attach_uprobe_helper(&mut self, ev_name: String, attach_type: bpf_probe_attach_type,
                             path: *const c_char, addr: u64, fd: i32, pid: i32) -> Result<(), String> {
         let ev_name_c =
             CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
@@ -212,11 +225,11 @@ impl Module {
         Ok(())
     }
 
-    // attach a uprobe fd to the symbol in the library or binary 'name'
-    // The 'name' argument can be given as either a full library path (/usr/lib/..),
-    // a library without the lib prefix, or as a binary with full path (/bin/bash)
-    // A pid can be given to attach to, or -1 to attach to all processes.
-    pub fn attach_uprobe(&self, name: &str, symbol: *const i8, fd: i32, pid: i32)
+    /// attach a uprobe fd to the symbol in the library or binary 'name'
+    /// The 'name' argument can be given as either a full library path (/usr/lib/..),
+    /// a library without the lib prefix, or as a binary with full path (/bin/bash)
+    /// A pid can be given to attach to, or -1 to attach to all processes.
+    pub fn attach_uprobe(&mut self, name: &str, symbol: *const i8, fd: i32, pid: i32)
        -> Result<(), String> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
@@ -227,11 +240,11 @@ impl Module {
         bpf_probe_attach_type::BPF_PROBE_ENTRY, path, addr, fd, pid)
     }
 
-    // attaches a uretprobe fd to the symbol in the library or binary 'name'
-    // The 'name' argument can be given as either a full library path (/usr/lib/..),
-    // a library without the lib prefix, or as a binary with full path (/bin/bash)
-    // A pid can be given to attach to, or -1 to attach to all processes
-    pub fn attach_uretprobe(&self, name: &str, symbol: *const i8, fd: i32, pid: i32)
+    /// attaches a uretprobe fd to the symbol in the library or binary 'name'
+    /// The 'name' argument can be given as either a full library path (/usr/lib/..),
+    /// a library without the lib prefix, or as a binary with full path (/bin/bash)
+    /// A pid can be given to attach to, or -1 to attach to all processes
+    pub fn attach_uretprobe(&mut self, name: &str, symbol: *const i8, fd: i32, pid: i32)
        -> Result<(), String> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
@@ -242,19 +255,120 @@ impl Module {
         bpf_probe_attach_type::BPF_PROBE_RETURN, path, addr, fd, pid)
     }
 
-    // attaches a uprobe fd to all symbols in the library or binary
-    // 'name' that match a given pattern.
-    // The 'name' argument can be given as either a full library path (/usr/lib/..),
-    // a library without the lib prefix, or as a binary with full path (/bin/bash)
-    // A pid can be given, or -1 to attach to all processes
-    pub fn attach_matching_uprobes(&self, name: &str, match_str: &str, fd: i32, pid: i32) -> Result<(), String> {
+    /// attaches a uprobe fd to all symbols in the library or binary
+    /// 'name' that match a given pattern.
+    /// The 'name' argument can be given as either a full library path (/usr/lib/..),
+    /// a library without the lib prefix, or as a binary with full path (/bin/bash)
+    /// A pid can be given, or -1 to attach to all processes
+    pub fn attach_matching_uprobes(&mut self, name: &str, match_str: &str, fd: i32, pid: i32)
+                                   -> Result<(), String> {
         let symbols = match_user_symbols(name, match_str)?;
         if symbols.len() == 0 {
             return Err(format!("no symbols matching {} for {} found", match_str, name));
         }
         for symbol in symbols {
-            self.attach_uprobe(name, symbol.name, fd, pid)?;
+            self.attach_uprobe(name, symbol.name.as_ptr(), fd, pid)?;
         }
         Ok(())
+    }
+
+    /// attaches a uretprobe fd to all symbols in the library or binary
+    /// 'name' that match a given pattern.
+    /// The 'name' argument can be given as either a full library path (/usr/lib/..),
+    /// a library without the lib prefix, or as a binary with full path (/bin/bash)
+    /// A pid can be given, or -1 to attach to all processes
+    pub fn attach_matching_uretprobes(&mut self, name: &str, match_str: &str, fd: i32, pid: i32)
+                                      -> Result<(), String> {
+        let symbols = match_user_symbols(name, match_str)?;
+        if symbols.len() == 0 {
+            return Err(format!("no symbols matching {} for {} found", match_str, name));
+        }
+        for symbol in symbols {
+            self.attach_uretprobe(name, symbol.name.as_ptr(), fd, pid)?;
+        }
+        Ok(())
+    }
+
+    pub fn table_size(&self) -> u64 {
+        let size = unsafe {
+            bpf_num_tables(self.p as *mut c_void)
+        };
+        return size as u64;
+    }
+
+    pub fn table_id(&self, name: &str) -> Result<usize, String> {
+        let name_c = match CString::new(name) {
+            Ok(r) => r,
+            Err(e) => return Err(format!("Fail to convert {} to Rust CString: {}", name, e)),
+        };
+        let id = unsafe {
+            bpf_table_id(self.p as *mut c_void, name_c.as_ptr())
+        };
+        Ok(id)
+    }
+
+    pub fn table_desc(&self, id: u64) -> Result<TableDesc, String> {
+        let name = unsafe {
+            bpf_table_name(self.p as *mut c_void, id as usize)
+        };
+        let name_str = unsafe {
+            match CStr::from_ptr(name).to_str() {
+                Ok(r) => r,
+                Err(e) => return Err(format!("Fail to convert name {:p} to Rust str: {}", name, e)),
+            }
+        };
+        let fd = unsafe {
+            bpf_table_fd_id(self.p as *mut c_void, id as usize)
+        };
+        let key_size = unsafe {
+            bpf_table_key_size_id(self.p as *mut c_void, id as usize)
+        };
+        let leaf_size = unsafe {
+            bpf_table_leaf_size_id(self.p as *mut c_void, id as usize)
+        };
+        let key_desc = unsafe {
+            bpf_table_key_desc_id(self.p as *mut c_void, id as usize)
+        };
+        let leaf_desc = unsafe {
+            bpf_table_leaf_desc_id(self.p as *mut c_void, id as usize)
+        };
+        let key_desc_str = unsafe {
+            match CStr::from_ptr(key_desc).to_str() {
+                Ok(r) => r,
+                Err(e) => return Err(format!("Fail to convert key_desc {:p} to Rust str: {}", key_desc, e)),
+            }
+        };
+        let leaf_desc_str = unsafe {
+            match CStr::from_ptr(leaf_desc).to_str() {
+                Ok(r) => r,
+                Err(e) => return Err(format!("Fail to convert leaf_desc {:p} to Rust str: {}", leaf_desc, e)),
+            }
+        };
+        Ok(TableDesc {
+            name: name_str.to_string(),
+            fd,
+            key_size: key_size as u64,
+            leaf_size: leaf_size as u64,
+            key_desc: key_desc_str.to_string(),
+            leaf_desc: leaf_desc_str.to_string(),
+        })
+    }
+
+    pub fn attach_xdp(&self, dev_name: &str, fd: i32) -> Result<(), String> {
+        let dev_name_c = match CString::new(dev_name) {
+            Ok(r) => r,
+            Err(e) => return Err(format!("Fail to convert {} to c string: {}", dev_name, e)),
+        };
+        let ret = unsafe {
+            bpf_attach_xdp(dev_name_c.as_ptr(), fd, 0)
+        };
+        if ret != 0 {
+            return Err(format!("failed to attach BPF xdp to device {}: {}", dev_name, ret));
+        }
+        Ok(())
+    }
+
+    pub fn remove_xdp(&self, dev_name: &str) -> Result<(), String> {
+        self.attach_xdp(dev_name, -1)
     }
 }
