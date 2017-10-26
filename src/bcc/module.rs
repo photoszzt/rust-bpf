@@ -8,15 +8,10 @@ use std::ffi::{CStr, CString};
 use bcc_sys::bccapi::{bpf_attach_kprobe, bpf_detach_kprobe, bpf_detach_uprobe, bpf_function_size,
                       bpf_function_start, bpf_module_create_c_from_string, bpf_module_destroy,
                       bpf_module_kern_version, bpf_module_license, bpf_probe_attach_type,
-                      bpf_prog_load, perf_reader_free};
-use std::os::raw::c_void;
+                      bpf_prog_load, perf_reader_free, bpf_attach_uprobe};
+use std::os::raw::{c_void, c_char};
 use regex::Regex;
-
-lazy_static! {
-    static ref DEFAULT_C_FLAGS: String = format!("-DNUMCPUS={}", num_cpus::get());
-    static ref KPROBE_REGEX: Regex = Regex::new(r"[+.]").unwrap();
-    static ref UPROBE_REGEX: Regex = Regex::new(r"[^a-zA-Z0-9_]").unwrap();
-}
+use bcc::symbol::resolve_symbol_path;
 
 #[derive(Debug, Default)]
 pub struct Module {
@@ -25,6 +20,13 @@ pub struct Module {
     kprobes: HashMap<CString, usize>,
     uprobes: HashMap<CString, usize>,
 }
+
+lazy_static! {
+    static ref DEFAULT_C_FLAGS: String = format!("-DNUMCPUS={}", num_cpus::get());
+    static ref KPROBE_REGEX: Regex = Regex::new(r"[+.]").unwrap();
+    static ref UPROBE_REGEX: Regex = Regex::new(r"[^a-zA-Z0-9_]").unwrap();
+}
+
 
 pub fn new_module(code: &CStr, cflags: &Vec<CString>) -> Result<Module, String> {
     let mut cflagsC = {
@@ -172,7 +174,7 @@ impl Module {
             )
         };
         if ret.is_null() {
-            return Err("Failed to attach BPF uprobe".to_string());
+            return Err("Failed to attach BPF kprobe".to_string());
         }
         self.kprobes.insert(ev_name_c, ret as usize);
         Ok(())
@@ -195,8 +197,41 @@ impl Module {
         )
     }
 
-    // pub fn attach_uprobe(&self, name: &str, symbol: &str, fd: i32, pid: i32)
-    //    -> Result<(), String> {
-    //
-    // }
+    fn attach_uprobe_helper(&self, ev_name: String, attach_type: bpf_probe_attach_type,
+                            path: *const c_char, addr: u64, fd: i32, pid: i32) -> Result<(), String> {
+        let ev_name_c =
+            CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
+        let res = unsafe {
+            bpf_attach_uprobe(fd, attach_type, ev_name_c.as_ptr(), path, addr, pid, 0, -1,
+                              None, ::std::ptr::null_mut())
+        };
+        if res.is_null() {
+            return Err("Failed to attach BPF uprobe".to_string());
+        }
+        self.uprobes.insert(ev_name_c, res as usize);
+        Ok(())
+    }
+
+    // attach a uprobe fd to the symbol in the library or binary 'name'
+    // The 'name' argument can be given as either a full library path (/usr/lib/..),
+    // a library without the lib prefix, or as a binary with full path (/bin/bash)
+    // A pid can be given to attach to, or -1 to attach to all processes.
+    pub fn attach_uprobe(&self, name: &str, symbol: &str, fd: i32, pid: i32)
+       -> Result<(), String> {
+        let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
+        let path_str = unsafe {
+            CStr::from_ptr(path).to_str().map_err(|e| format!("Fail to convert path to Rust str: {}", e))
+        }?;
+        let ev_name = format!("p_{}_0x{}", UPROBE_REGEX.replace_all(path_str, "_"), addr);
+        self.attach_uprobe_helper(ev_name, bpf_probe_attach_type::BPF_PROBE_ENTRY, path, addr, fd, pid)
+    }
+
+    // attaches a uprobe fd to all symbols in the library or binary
+    // 'name' that match a given pattern.
+    // The 'name' argument can be given as either a full library path (/usr/lib/..),
+    // a library without the lib prefix, or as a binary with full path (/bin/bash)
+    // A pid can be given, or -1 to attach to all processes
+    pub fn attach_matching_uprobes(&self, name: &str, match_str: &str, fd: i32, pid: i32) -> Result<(), String> {
+        Ok(())
+    }
 }
