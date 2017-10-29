@@ -18,7 +18,7 @@ use bcc::symbol::{resolve_symbol_path, match_user_symbols};
 
 #[derive(Debug, Default)]
 pub struct Module {
-    p: usize,
+    pub p: usize,
     funcs: HashMap<CString, i32>,
     kprobes: HashMap<CString, usize>,
     uprobes: HashMap<CString, usize>,
