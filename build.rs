@@ -19,25 +19,8 @@ const WHITELIST_VARS: &'static [&'static str] = &[
 ];
 
 fn build_ebpf_perf_bindings() {
-    // Get kernel header location from STD_KERNEL_PATH variable supplied by Makefile
-    let std_kernel_path = match std::env::var("STD_KERNEL_PATH") {
-        Ok(string) => string,
-        Err(error) => {
-            panic!(
-                "Missing environment variable STD_KERNEL_PATH, run from Makefile: {:?}",
-                error
-            );
-        }
-    };
-
-    // Tell clang where to find kernel headers by passing -I <include dir> switch
-    let mut clang_arg: String = "-I".to_owned();
-    clang_arg.push_str(&std_kernel_path);
-    clang_arg.push_str(&"/include");
-
     let mut bindings = bindgen::Builder::default()
-        .header("/usr/include/linux/perf_event.h")
-        .clang_arg(clang_arg);
+        .header("/usr/include/linux/perf_event.h");
 
     for ty in WHITELIST_TYPES {
         bindings = bindings.whitelist_type(ty);
