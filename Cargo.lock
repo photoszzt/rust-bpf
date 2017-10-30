@@ -23,7 +23,7 @@ dependencies = [
 
 [[package]]
 name = "bcc-sys"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bindgen 0.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -224,7 +224,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "rust-bpf"
 version = "0.1.0"
 dependencies = [
- "bcc-sys 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bcc-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bindgen 0.31.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "elf 0.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -232,6 +232,7 @@ dependencies = [
  "libc 0.2.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "nix 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syscall 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -329,7 +330,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum aho-corasick 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "500909c4f87a9e52355b26626d890833e9e1d53ac566db76c36faa984b889699"
 "checksum ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "23ac7c30002a5accbf7e8987d0632fa6de155b7c3d39d0067317a391e00a2ef6"
 "checksum atty 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d912da0db7fa85514874458ca3651fe2cddace8d0b0505571dbdcd41ab490159"
-"checksum bcc-sys 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "31c9fa736a9555006cc344bd499e2e1b2a90db6e4b033e4eb9587a886055ff91"
+"checksum bcc-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "b1337149c2bfb70fd68cf7b70dfb816e9eb56183b33da9371165d6d1383f0bb7"
 "checksum bindgen 0.31.2 (registry+https://github.com/rust-lang/crates.io-index)" = "03c4e953809a480741ffbd58d8d241bb8b21ada7847f5ce3dd9b9af4e097d37d"
 "checksum bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4efd02e230a02e18f92fc2735f44597385ed02ad8f831e7c1c1156ee5e1ab3a5"
 "checksum byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "0fc10e8cc6b2580fda3f36eb6dc5316657f812a3df879a44a66fc9f0fdbc4855"

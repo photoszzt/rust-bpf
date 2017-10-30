@@ -89,7 +89,7 @@ impl Module {
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_ACT.
-    pub fn load_net(&mut self, name: &CStr) -> Result<i32, String> {
+    pub fn load_net(&mut self, name: CString) -> Result<i32, String> {
         self.load(
             name,
             bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT,
@@ -97,25 +97,25 @@ impl Module {
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_KPROBE.
-    pub fn load_kprobe(&mut self, name: &CStr) -> Result<i32, String> {
+    pub fn load_kprobe(&mut self, name: CString) -> Result<i32, String> {
         self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_KPROBE)
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_KPROBE.
-    pub fn load_uprobe(&mut self, name: &CStr) -> Result<i32, String> {
+    pub fn load_uprobe(&mut self, name: CString) -> Result<i32, String> {
         self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_KPROBE)
     }
 
     fn load(
         &mut self,
-        name: &CStr,
+        name: CString,
         prog_type: bcc_sys::bccapi::bpf_prog_type,
     ) -> Result<i32, String> {
-        if let Some(fd) = self.funcs.get(name) {
+        if let Some(fd) = self.funcs.get(&name) {
             return Ok(*fd);
         }
-        let fd = self.load_helper(name, prog_type)?;
-        self.funcs.insert(name.to_owned(), fd);
+        let fd = self.load_helper(&name, prog_type)?;
+        self.funcs.insert(name, fd);
         Ok(fd)
     }
 
@@ -133,7 +133,7 @@ impl Module {
         }
         let logbuf = [0u8; 65536];
         let fd = unsafe {
-            bpf_prog_load(
+            bpf_prog_load (
                 prog_type,
                 name.as_ptr(),
                 start as *const c_void as *const _,
@@ -145,11 +145,15 @@ impl Module {
             )
         };
         if fd < 0 {
-            let msg = String::from_utf8_lossy(&logbuf);
-            if msg.len() > 0 {
-                return Err(format!("error loading BPF program: {}", msg));
+            let msg = ::std::str::from_utf8(&logbuf);
+            if let Ok(m) = msg {
+                if m.len() > 0 {
+                    return Err(format!("error loading BPF program: {}, {}, {}", 
+                    fd, nix::errno::errno(), m));
+                }
             }
-            return Err(format!("error loading BPF program: {}", fd));
+            return Err(format!("error loading BPF program: {}, {}", fd,
+            nix::errno::errno()));
         }
         return Ok(fd);
     }

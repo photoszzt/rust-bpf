@@ -15,5 +15,8 @@ elf = "0.0.10"
 nix = "0.9.0"
 regex = "0.2"
 lazy_static = "0.2"
-bcc-sys = "0.3.2"
+bcc-sys = "0.3.3"
 num_cpus = "1.0"
+
+[dev-dependencies]
+quote = "0.3"

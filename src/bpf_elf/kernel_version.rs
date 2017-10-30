@@ -14,7 +14,7 @@ lazy_static! {
         Regex::new(r".* SMP Debian (\d+\.\d+.\d+-\d+) .*").unwrap();
 }
 
-fn kernel_version_from_release_string(release_str: &str) -> Result<u32, String> {
+pub fn kernel_version_from_release_string(release_str: &str) -> Result<u32, String> {
     let versionParts = match VERSION_REGEX.captures(release_str) {
         Some(r) => r,
         None => return Err("Fail to find version from strings".to_string()),
