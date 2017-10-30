@@ -68,7 +68,7 @@ fn build_ebpf_perf_bindings() {
                   concat!(env!("CARGO_MANIFEST_DIR"), "/src/perf_event_bindings.rs"),
             ])
             .output()
-            .expect("fail to execute `rustup run nightly rustfmt`");;
+            .expect("fail to execute `rustup run nightly rustfmt`");
         println!("status: {}", output.status);
         println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
         println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
