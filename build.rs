@@ -49,6 +49,7 @@ fn build_ebpf_perf_bindings() {
 
     bindings = bindings
         .derive_debug(true)
+        .impl_debug(true)
         .derive_default(true)
         .derive_partialeq(true)
         .impl_partialeq(true)

@@ -5,7 +5,7 @@ name = "rust-bpf"
 version = "0.1.0"
 
 [build-dependencies]
-bindgen = "0.31.0"
+bindgen = "0.31.2"
 
 [dependencies]
 syscall = "0.2.1"
@@ -15,5 +15,5 @@ elf = "0.0.10"
 nix = "0.9.0"
 regex = "0.2"
 lazy_static = "0.2"
-bcc-sys = "0.3"
+bcc-sys = "0.3.2"
 num_cpus = "1.0"
