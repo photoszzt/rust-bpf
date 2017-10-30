@@ -122,4 +122,4 @@ int socket__dummy(struct __sk_buff *skb)
 	return 0;
 }
 
-unsigned int _version SEC("version") = 0xFFFFFFFE;
+unsigned int _version SEC("version") = 0xFFFE;

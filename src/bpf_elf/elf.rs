@@ -3,9 +3,7 @@ extern crate elf;
 extern crate libc;
 extern crate nix;
 
-use bcc_sys::bccapi::{bpf_attr, bpf_cmd, bpf_insn, bpf_map_type, bpf_obj_get, bpf_obj_pin,
-                      bpf_prog_type, bpf_update_elem, BPF_ANY, BPF_DW, BPF_IMM, BPF_LD,
-                      BPF_PSEUDO_MAP_FD};
+use bcc_sys::bccapi::*;
 use bpf::bpf_map_def;
 use elf::types::*;
 use bpf_elf::kernel_version::*;
@@ -21,8 +19,7 @@ use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use bpf_elf::module::*;
 use std::collections::HashMap;
 use std::path::Path;
-use perf_event_bindings::{perf_event_attr, perf_event_mmap_page, perf_event_sample_format,
-                          perf_sw_ids, perf_type_id, PERF_FLAG_FD_CLOEXEC};
+use perf_event_bindings::*;
 use bpf_elf::perf_event::PERF_EVENT_IOC_ENABLE;
 use bpf::bpf_attr_ext;
 
@@ -115,7 +112,7 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
     let mut ret = unsafe {
         syscall!(
             BPF,
-            bpf_cmd::BPF_MAP_CREATE,
+            bpf_cmd_BPF_MAP_CREATE,
             &attr as *const _ as usize,
             ::std::mem::size_of::<bpf_attr>()
         )
@@ -140,7 +137,7 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
                     if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
                         ret = syscall!(
                             BPF,
-                            bpf_cmd::BPF_MAP_CREATE,
+                            bpf_cmd_BPF_MAP_CREATE,
                             &attr as *const _ as usize,
                             ::std::mem::size_of::<bpf_attr>()
                         );
@@ -182,7 +179,7 @@ fn bpf_prog_load(
     let mut ret = unsafe {
         syscall!(
             BPF,
-            bpf_cmd::BPF_PROG_LOAD,
+            bpf_cmd_BPF_PROG_LOAD,
             &attr as *const _ as usize,
             ::std::mem::size_of::<bpf_attr>()
         )
@@ -207,7 +204,7 @@ fn bpf_prog_load(
                     if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
                         ret = syscall!(
                             BPF,
-                            bpf_cmd::BPF_PROG_LOAD,
+                            bpf_cmd_BPF_PROG_LOAD,
                             &attr as *const _ as usize,
                             ::std::mem::size_of::<bpf_attr>()
                         );
@@ -356,11 +353,11 @@ impl bpf_map_def {
 
 fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
     let attr: perf_event_attr = perf_event_attr::gen_perf_event_attr_open_map(
-        perf_type_id::PERF_TYPE_SOFTWARE,
-        perf_event_sample_format::PERF_SAMPLE_RAW,
+        perf_type_id_PERF_TYPE_SOFTWARE,
+        perf_event_sample_format_PERF_SAMPLE_RAW,
         1,
         ::std::mem::size_of::<perf_event_attr>() as u32,
-        perf_sw_ids::PERF_COUNT_SW_BPF_OUTPUT as u64,
+        perf_sw_ids_PERF_COUNT_SW_BPF_OUTPUT as u64,
     );
     unsafe {
         syscall!(
@@ -587,19 +584,19 @@ impl Module {
 
                 let progType = {
                     if is_kprobe || is_kretprobe {
-                        bpf_prog_type::BPF_PROG_TYPE_KPROBE
+                        bpf_prog_type_BPF_PROG_TYPE_KPROBE
                     } else if is_cgroup_skb {
-                        bpf_prog_type::BPF_PROG_TYPE_CGROUP_SKB
+                        bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
                     } else if is_cgroup_sock {
-                        bpf_prog_type::BPF_PROG_TYPE_CGROUP_SOCK
+                        bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
                     } else if is_socket_filter {
-                        bpf_prog_type::BPF_PROG_TYPE_SOCKET_FILTER
+                        bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
                     } else if is_tracepoint {
-                        bpf_prog_type::BPF_PROG_TYPE_TRACEPOINT
+                        bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
                     } else if is_sched_act {
-                        bpf_prog_type::BPF_PROG_TYPE_SCHED_ACT
+                        bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
                     } else if is_sched_cls {
-                        bpf_prog_type::BPF_PROG_TYPE_SCHED_CLS
+                        bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
                     } else {
                         panic!("Invalid prog type");
                     }
@@ -696,19 +693,19 @@ impl Module {
 
             let progType = {
                 if is_kprobe || is_kretprobe {
-                    bpf_prog_type::BPF_PROG_TYPE_KPROBE
+                    bpf_prog_type_BPF_PROG_TYPE_KPROBE
                 } else if is_cgroup_skb {
-                    bpf_prog_type::BPF_PROG_TYPE_CGROUP_SKB
+                    bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
                 } else if is_cgroup_sock {
-                    bpf_prog_type::BPF_PROG_TYPE_CGROUP_SOCK
+                    bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
                 } else if is_socket_filter {
-                    bpf_prog_type::BPF_PROG_TYPE_SOCKET_FILTER
+                    bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
                 } else if is_tracepoint {
-                    bpf_prog_type::BPF_PROG_TYPE_TRACEPOINT
+                    bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
                 } else if is_sched_act {
-                    bpf_prog_type::BPF_PROG_TYPE_SCHED_ACT
+                    bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
                 } else if is_sched_cls {
-                    bpf_prog_type::BPF_PROG_TYPE_SCHED_CLS
+                    bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
                 } else {
                     panic!("Invalid prog type");
                 }
@@ -792,7 +789,7 @@ impl Module {
         params: &HashMap<String, SectionParams>,
     ) -> Result<(), String> {
         for (name, m) in self.maps.iter_mut() {
-            if m.m.def.type_ != bpf_map_type::BPF_MAP_TYPE_PERF_EVENT_ARRAY as u32 {
+            if m.m.def.type_ != bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY as u32 {
                 continue;
             }
 

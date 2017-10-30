@@ -158,7 +158,7 @@ pub fn bpf_verify_program(
     unsafe {
         syscall!(
             BPF,
-            bpf_cmd::BPF_PROG_LOAD,
+            bpf_cmd_BPF_PROG_LOAD,
             &attr as *const _ as usize,
             ::std::mem::size_of::<bpf_attr>()
         )
@@ -171,7 +171,7 @@ pub fn bpf_prog_attach(prog_fd: u32, target_fd: u32, att_type: bpf_attach_type) 
     unsafe {
         syscall!(
             BPF,
-            bpf_cmd::BPF_PROG_ATTACH,
+            bpf_cmd_BPF_PROG_ATTACH,
             &attr as *const _ as usize,
             ::std::mem::size_of::<bpf_attr>()
         ) as i32
@@ -184,7 +184,7 @@ pub fn bpf_prog_detach(prog_fd: u32, target_fd: u32, att_type: bpf_attach_type) 
     unsafe {
         syscall!(
             BPF,
-            bpf_cmd::BPF_PROG_DETACH,
+            bpf_cmd_BPF_PROG_DETACH,
             &attr as *const _ as usize,
             ::std::mem::size_of::<bpf_attr>()
         ) as i32

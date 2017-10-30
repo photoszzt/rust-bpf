@@ -8,8 +8,7 @@ use elf;
 use bpf_elf::elf::EbpfMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Error, ErrorKind};
-use perf_event_bindings::{perf_event_attr, perf_event_sample_format, perf_type_id,
-                          PERF_FLAG_FD_CLOEXEC};
+use perf_event_bindings::*;
 use bpf_elf::perf_event::{PERF_EVENT_IOC_ENABLE, PERF_EVENT_IOC_SET_BPF};
 use std::str::FromStr;
 use std::io::{Read, Write};
@@ -280,8 +279,8 @@ impl TracepointProgram {
         flags: u64,
     ) -> i32 {
         let attr: perf_event_attr = perf_event_attr::gen_perf_event_attr_open_tracepoint(
-            perf_type_id::PERF_TYPE_TRACEPOINT,
-            perf_event_sample_format::PERF_SAMPLE_RAW,
+            perf_type_id_PERF_TYPE_TRACEPOINT,
+            perf_event_sample_format_PERF_SAMPLE_RAW,
             1,
             1,
             tracepoint_id as u64,

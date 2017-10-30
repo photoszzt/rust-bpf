@@ -5,13 +5,7 @@ extern crate regex;
 
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
-use bcc_sys::bccapi::{bpf_attach_kprobe, bpf_detach_kprobe, bpf_detach_uprobe, bpf_function_size,
-                      bpf_function_start, bpf_module_create_c_from_string, bpf_module_destroy,
-                      bpf_module_kern_version, bpf_module_license, bpf_probe_attach_type,
-                      bpf_prog_load, perf_reader_free, bpf_attach_uprobe, bpf_num_tables,
-                      bpf_table_key_size_id, bpf_table_leaf_size_id, bpf_table_key_desc_id,
-                      bpf_table_leaf_desc_id, bpf_attach_xdp, bpf_table_id, bpf_table_name,
-                      bpf_table_fd_id};
+use bcc_sys::bccapi::*;
 use std::os::raw::{c_void, c_char};
 use regex::Regex;
 use bcc::symbol::{resolve_symbol_path, match_user_symbols};
@@ -98,18 +92,18 @@ impl Module {
     pub fn load_net(&mut self, name: &CStr) -> Result<i32, String> {
         self.load(
             name,
-            bcc_sys::bccapi::bpf_prog_type::BPF_PROG_TYPE_SCHED_ACT,
+            bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT,
         )
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_KPROBE.
     pub fn load_kprobe(&mut self, name: &CStr) -> Result<i32, String> {
-        self.load(name, bcc_sys::bccapi::bpf_prog_type::BPF_PROG_TYPE_KPROBE)
+        self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_KPROBE)
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_KPROBE.
     pub fn load_uprobe(&mut self, name: &CStr) -> Result<i32, String> {
-        self.load(name, bcc_sys::bccapi::bpf_prog_type::BPF_PROG_TYPE_KPROBE)
+        self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_KPROBE)
     }
 
     fn load(
@@ -141,6 +135,7 @@ impl Module {
         let fd = unsafe {
             bpf_prog_load(
                 prog_type,
+                name.as_ptr(),
                 start as *const c_void as *const _,
                 size as i32,
                 license,
@@ -196,7 +191,7 @@ impl Module {
     /// attach a kprobe fd to a function.
     pub fn attach_kprobe(&mut self, fn_name: &str, fd: i32) -> Result<(), String> {
         let ev_name = format!("p_{}", KPROBE_REGEX.replace_all(fn_name, "_"));
-        self.attach_probe(ev_name, bpf_probe_attach_type::BPF_PROBE_ENTRY, fn_name, fd)
+        self.attach_probe(ev_name, bpf_probe_attach_type_BPF_PROBE_ENTRY, fn_name, fd)
     }
 
     /// attach a kretprobe fd to a function.
@@ -204,7 +199,7 @@ impl Module {
         let ev_name = format!("r_{}", KPROBE_REGEX.replace_all(fn_name, "_"));
         self.attach_probe(
             ev_name,
-            bpf_probe_attach_type::BPF_PROBE_RETURN,
+            bpf_probe_attach_type_BPF_PROBE_RETURN,
             fn_name,
             fd,
         )
@@ -237,7 +232,7 @@ impl Module {
         }?;
         let ev_name = format!("p_{}_0x{}", UPROBE_REGEX.replace_all(path_str, "_"), addr);
         self.attach_uprobe_helper(ev_name,
-        bpf_probe_attach_type::BPF_PROBE_ENTRY, path, addr, fd, pid)
+        bpf_probe_attach_type_BPF_PROBE_ENTRY, path, addr, fd, pid)
     }
 
     /// attaches a uretprobe fd to the symbol in the library or binary 'name'
@@ -252,7 +247,7 @@ impl Module {
         }?;
         let ev_name = format!("p_{}_0x{}", UPROBE_REGEX.replace_all(path_str, "_"), addr);
         self.attach_uprobe_helper(ev_name,
-        bpf_probe_attach_type::BPF_PROBE_RETURN, path, addr, fd, pid)
+        bpf_probe_attach_type_BPF_PROBE_RETURN, path, addr, fd, pid)
     }
 
     /// attaches a uprobe fd to all symbols in the library or binary
