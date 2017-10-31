@@ -1,6 +1,7 @@
 extern crate bcc_sys;
 extern crate libc;
 extern crate nix;
+extern crate xmas_elf;
 
 use std::collections::HashMap;
 use bcc_sys::bccapi::*;
@@ -16,9 +17,9 @@ use std::os::unix::io::AsRawFd;
 use bpf::{bpf_prog_attach, bpf_prog_detach};
 use bpf_elf;
 
-pub struct Module {
+pub struct Module<'a> {
     pub file_name: String,
-    pub file: Option<elf::File>,
+    pub file: xmas_elf::ElfFile<'a>,
     pub log: Vec<u8>,
     pub maps: HashMap<String, EbpfMap>,
     pub probes: HashMap<String, Kprobe>,
@@ -66,21 +67,16 @@ pub struct CloseOptions {
     pin_path: String,
 }
 
-const kprobe_events_filename: &'static str = "/sys/kernel/debug/tracing/kprobe_events";
-
-pub fn new_module(file_name: String) -> Module {
-    Module {
-        file_name,
-        file: None,
-        log: Vec::new(),
-        maps: HashMap::new(),
-        probes: HashMap::new(),
-        cgroup_programs: HashMap::new(),
-        socket_filters: HashMap::new(),
-        tracepoint_programs: HashMap::new(),
-        sched_programs: HashMap::new(),
+impl CloseOptions {
+    pub fn new(unpin: bool, pin_path: String) -> CloseOptions {
+        CloseOptions {
+            unpin,
+            pin_path,
+        }
     }
 }
+
+const kprobe_events_filename: &'static str = "/sys/kernel/debug/tracing/kprobe_events";
 
 impl CgroupProgram {
     pub fn attach_cgroup_program(
@@ -347,6 +343,31 @@ impl EbpfMap {
 }
 
 impl Module {
+    pub fn new<'a>(file_name: String) -> Result<Module<'a>, String> {
+        let path = PathBuf::from(&self.file_name);
+        let file = match ::std::fs::File::open(path) {
+            Ok(r) => r,
+            Err(e) => return Err(format!("Fail to open file {}: {}", self.file_name, e)),
+        };
+        let mut buf = Vec::new();
+        match file.read_to_end(&mut buf) {
+            Ok(_) => (),
+            Err(e) => return Err(format!("Fail to read file {} to end: {}", self.file_name, e)),
+        }
+        let elf_file = ElfFile::new(&buf).map_err(|e| format!("Fail to parse elf file: {}", e));
+        Module {
+            file_name,
+            file: elf_file,
+            log: Vec::new(),
+            maps: HashMap::new(),
+            probes: HashMap::new(),
+            cgroup_programs: HashMap::new(),
+            socket_filters: HashMap::new(),
+            tracepoint_programs: HashMap::new(),
+            sched_programs: HashMap::new(),
+        }
+    }
+
     /// EnableKprobe enables a kprobe/kretprobe identified by secName.
     /// For kretprobes, you can configure the maximum number of instances
     /// of the function that can be probed simultaneously with maxactive.

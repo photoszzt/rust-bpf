@@ -123,3 +123,4 @@ int socket__dummy(struct __sk_buff *skb)
 }
 
 unsigned int _version SEC("version") = 0xFFFE;
+char _license[] SEC("license") = "GPL";

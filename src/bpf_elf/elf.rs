@@ -1,5 +1,5 @@
 extern crate bcc_sys;
-extern crate elf;
+extern crate xmas_elf;
 extern crate libc;
 extern crate nix;
 
@@ -81,6 +81,15 @@ pub struct SectionParams {
     perf_ring_buffer_page_count: i32,
     skip_perf_map_initialization: bool,
     pin_path: String,
+}
+
+impl SectionParams {
+    pub fn new(pin_path: String) -> SectionParams {
+        SectionParams {
+            pin_path,
+            ..Default::default()
+        }
+    }
 }
 
 // represents a ebpf map.
@@ -376,6 +385,10 @@ impl Module {
     fn elf_read_license(&self) -> Result<String, String> {
         match self.file {
             Some(ref f) => {
+                println!("File: {}", &self.file_name);
+                for s in &f.sections {
+                    println!("section name: {}", s.shdr.name);
+                }
                 match f.get_section("license") {
                     Some(ref s) => match ::std::str::from_utf8(&s.data) {
                         Ok(res) => Ok(res.to_string()),
@@ -576,6 +589,15 @@ impl Module {
     pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
         if self.file_name != "" {
             let path = PathBuf::from(&self.file_name);
+            let file = match ::std::fs::File::open(path) {
+                Ok(r) => r,
+                Err(e) => return Err(format!("Fail to open file {}: {}", self.file_name, e)),
+            };
+            let mut buf = Vec::new();
+            match file.read_to_end(&mut buf) {
+                Ok(_) => (),
+                Err(e) => return Err(format!("Fail to read file {} to end: {}", self.file_name, e)),
+            }
             self.file = Some(match elf::File::open_path(&path) {
                 Ok(f) => f,
                 Err(_) => panic!("Fail to open file: {}", &self.file_name),
