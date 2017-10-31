@@ -18,7 +18,7 @@ use bpf_elf;
 
 pub struct Module {
     pub file_name: String,
-    pub file: elf::File,
+    pub file: Option<elf::File>,
     pub log: Vec<u8>,
     pub maps: HashMap<String, EbpfMap>,
     pub probes: HashMap<String, Kprobe>,
@@ -67,6 +67,20 @@ pub struct CloseOptions {
 }
 
 const kprobe_events_filename: &'static str = "/sys/kernel/debug/tracing/kprobe_events";
+
+pub fn new_module(file_name: String) -> Module {
+    Module {
+        file_name,
+        file: None,
+        log: Vec::new(),
+        maps: HashMap::new(),
+        probes: HashMap::new(),
+        cgroup_programs: HashMap::new(),
+        socket_filters: HashMap::new(),
+        tracepoint_programs: HashMap::new(),
+        sched_programs: HashMap::new(),
+    }
+}
 
 impl CgroupProgram {
     pub fn attach_cgroup_program(

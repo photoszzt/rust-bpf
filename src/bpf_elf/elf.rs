@@ -374,28 +374,38 @@ fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
 
 impl Module {
     fn elf_read_license(&self) -> Result<String, String> {
-        match self.file.get_section("license") {
-            Some(ref s) => match ::std::str::from_utf8(&s.data) {
-                Ok(res) => Ok(res.to_string()),
-                Err(e) => Err(format!("Fail to convert result to String: {}", e)),
+        match self.file {
+            Some(ref f) => {
+                match f.get_section("license") {
+                    Some(ref s) => match ::std::str::from_utf8(&s.data) {
+                        Ok(res) => Ok(res.to_string()),
+                        Err(e) => Err(format!("Fail to convert result to String: {}", e)),
+                    },
+                    None => Err("Failed to look up license section".to_string()),
+                }
             },
-            None => Err("Failed to look up license section".to_string()),
+            None => panic!("Need to load module first!")
         }
     }
 
     fn elf_read_version(&self) -> Result<u32, String> {
-        match self.file.get_section("version") {
-            Some(s) => {
-                if s.data.len() != 4 {
-                    return Err("version is not a __u32".to_string());
+        match self.file {
+            Some(ref f) => {
+                match f.get_section("version") {
+                    Some(s) => {
+                        if s.data.len() != 4 {
+                            return Err("version is not a __u32".to_string());
+                        }
+                        let mut buf = Cursor::new(&s.data);
+                        match buf.read_u32::<LittleEndian>() {
+                            Ok(res) => Ok(res),
+                            Err(_) => Err("Fail to read version".to_string()),
+                        }
+                    }
+                    None => Err("Failed to look up version section".to_string()),
                 }
-                let mut buf = Cursor::new(&s.data);
-                match buf.read_u32::<LittleEndian>() {
-                    Ok(res) => Ok(res),
-                    Err(_) => Err("Fail to read version".to_string()),
-                }
-            }
-            None => Err("Failed to look up version section".to_string()),
+            },
+            None => panic!("Need to load module first!")
         }
     }
 
@@ -404,105 +414,128 @@ impl Module {
         params: &HashMap<String, SectionParams>,
     ) -> Result<HashMap<String, EbpfMap>, String> {
         let mut maps: HashMap<String, EbpfMap> = HashMap::new();
-        for sec in &self.file.sections {
-            if sec.shdr.name.starts_with("maps/") {
-                continue;
-            }
-            let data = &sec.data;
-            if data.len() != ::std::mem::size_of::<bpf_map_def>() {
-                return Err(format!(
-                    "only one map with size {} bytes allowed per section (check bpf_map_def)",
-                    ::std::mem::size_of::<bpf_map_def>()
-                ));
-            }
+        match self.file {
+            Some(ref f) => {
+                for sec in &f.sections {
+                    if sec.shdr.name.starts_with("maps/") {
+                        continue;
+                    }
+                    let data = &sec.data;
+                    if data.len() != ::std::mem::size_of::<bpf_map_def>() {
+                        return Err(format!(
+                            "only one map with size {} bytes allowed per section (check bpf_map_def)",
+                            ::std::mem::size_of::<bpf_map_def>()
+                        ));
+                    }
 
-            let name = sec.shdr.name.trim_left_matches("maps/");
-            let map_def = unsafe {
-                let map_def_ptr = &sec.data[0] as *const u8 as *const bpf_map_def;
-                if map_def_ptr.is_null() {
-                    continue;
-                } else {
-                    &*map_def_ptr
+                    let name = sec.shdr.name.trim_left_matches("maps/");
+                    let map_def = unsafe {
+                        let map_def_ptr = &sec.data[0] as *const u8 as *const bpf_map_def;
+                        if map_def_ptr.is_null() {
+                            continue;
+                        } else {
+                            &*map_def_ptr
+                        }
+                    };
+                    let map_path = map_def.create_map_path(name, &params[&sec.shdr.name])?;
+                    let map = bpf_load_map(map_def, &map_path)?;
+                    if let Some(oldMap) = maps.get(name) {
+                        return Err(format!("Duplicate map: {} and {}", oldMap.name, name));
+                    }
+                    maps.insert(
+                        name.to_string(),
+                        EbpfMap {
+                            name: name.to_string(),
+                            m: map,
+                            headers: Vec::new(),
+                            page_count: 0,
+                            pmu_fds: Vec::new(),
+                        },
+                    );
                 }
-            };
-            let map_path = map_def.create_map_path(name, &params[&sec.shdr.name])?;
-            let map = bpf_load_map(map_def, &map_path)?;
-            if let Some(oldMap) = maps.get(name) {
-                return Err(format!("Duplicate map: {} and {}", oldMap.name, name));
             }
-            maps.insert(
-                name.to_string(),
-                EbpfMap {
-                    name: name.to_string(),
-                    m: map,
-                    headers: Vec::new(),
-                    page_count: 0,
-                    pmu_fds: Vec::new(),
-                },
-            );
+            None => panic!("Need to load module first!")
         }
         Ok(maps)
     }
 
     fn relocate(&self, data: &Vec<u8>, rdata: &Vec<u8>) -> Result<(), String> {
-        let symtab_sec = match self.file.get_section(".symtab") {
-            Some(s) => s,
-            None => return Err("Fail to get symbol table".to_string()),
-        };
-        let symbols = match self.file.get_symbols(&symtab_sec) {
-            Ok(res) => res,
-            Err(e) => {
-                return Err(format!(
-                    "Fail to get symbols from symbol table sections: {:?}",
-                    e
-                ))
+        let symtab_sec = match self.file {
+            Some(ref f) => {
+                match f.get_section(".symtab") {
+                    Some(s) => s,
+                    None => return Err("Fail to get symbol table".to_string()),
+                }
             }
+            None => panic!("Need to load module first!")
+        };
+        let symbols = match self.file {
+            Some(ref f) => {
+                match f.get_symbols(&symtab_sec) {
+                    Ok(res) => res,
+                    Err(e) => {
+                        return Err(format!(
+                            "Fail to get symbols from symbol table sections: {:?}",
+                            e
+                        ))
+                    }
+                }
+            }
+            None => panic!("Need to load module first!")
         };
         loop {
-            let (symbol, offset) = match self.file.ehdr.class {
-                ELFCLASS64 => {
-                    let mut buf = Cursor::new(data);
-                    match self.file.ehdr.data {
-                        ELFDATA2LSB => {
-                            let off = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 32;
-                            (symbols[(sym_no - 1) as usize].clone(), off)
+            let (symbol, offset) = match self.file {
+                Some(ref f) => {
+                    match f.ehdr.class {
+                        ELFCLASS64 => {
+                            let mut buf = Cursor::new(data);
+                            match f.ehdr.data {
+                                ELFDATA2LSB => {
+                                    let off = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
+                                    let info = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
+                                    let sym_no = info >> 32;
+                                    (symbols[(sym_no - 1) as usize].clone(), off)
+                                }
+                                ELFDATA2MSB => {
+                                    let off = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
+                                    let info = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
+                                    let sym_no = info >> 32;
+                                    (symbols[(sym_no - 1) as usize].clone(), off)
+                                }
+                                _ => panic!("Unrecognize endian encoding"),
+                            }
                         }
-                        ELFDATA2MSB => {
-                            let off = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 32;
-                            (symbols[(sym_no - 1) as usize].clone(), off)
+                        ELFCLASS32 => {
+                            let mut buf = Cursor::new(data);
+                            match f.ehdr.data {
+                                ELFDATA2LSB => {
+                                    let off = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
+                                    let info = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
+                                    let sym_no = info >> 8;
+                                    (symbols[(sym_no - 1) as usize].clone(), off as u64)
+                                }
+                                ELFDATA2MSB => {
+                                    let off = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
+                                    let info = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
+                                    let sym_no = info >> 8;
+                                    (symbols[(sym_no - 1) as usize].clone(), off as u64)
+                                }
+                                _ => panic!("Unrecognize endian encoding"),
+                            }
                         }
-                        _ => panic!("Unrecognize endian encoding"),
+                        _ => panic!("Unrecognize elf class"),
                     }
                 }
-                ELFCLASS32 => {
-                    let mut buf = Cursor::new(data);
-                    match self.file.ehdr.data {
-                        ELFDATA2LSB => {
-                            let off = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 8;
-                            (symbols[(sym_no - 1) as usize].clone(), off as u64)
-                        }
-                        ELFDATA2MSB => {
-                            let off = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 8;
-                            (symbols[(sym_no - 1) as usize].clone(), off as u64)
-                        }
-                        _ => panic!("Unrecognize endian encoding"),
-                    }
-                }
-                _ => panic!("Unrecognize elf class"),
+                None => panic!("Need to load module first!")
             };
             let rinsn = unsafe {
                 &mut *(&rdata[offset as usize] as *const u8 as *const bpf_insn as *mut bpf_insn)
             };
             if rinsn.code != (BPF_LD | BPF_IMM | BPF_DW) as u8 {
-                let symbol_sec = &self.file.sections[symbol.shndx as usize];
+                let symbol_sec = match self.file {
+                    Some(ref f) => &f.sections[symbol.shndx as usize],
+                    None => panic!("Need to load module first!")
+                };
                 return Err(format!(
                     "invalid relocation: symbol name={}\nsymbol section: Name={}, Type={}, Flags={}",
                     symbol.name,
@@ -512,7 +545,10 @@ impl Module {
                 ));
             }
 
-            let symbol_sec = &self.file.sections[symbol.shndx as usize];
+            let symbol_sec = match self.file {
+                Some(ref f) => &f.sections[symbol.shndx as usize],
+                None => panic!("Need to load module first!")
+            };
             if !symbol_sec.shdr.name.starts_with("maps/") {
                 return Err(format!(
                     "map location not supported: map {} is in section {} instead of \"maps/{}\"",
@@ -540,10 +576,10 @@ impl Module {
     pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
         if self.file_name != "" {
             let path = PathBuf::from(&self.file_name);
-            self.file = match elf::File::open_path(&path) {
+            self.file = Some(match elf::File::open_path(&path) {
                 Ok(f) => f,
                 Err(_) => panic!("Fail to open file: {}", &self.file_name),
-            };
+            });
         }
 
         let license = self.elf_read_license()?;
@@ -557,229 +593,234 @@ impl Module {
         };
         self.maps = self.elf_read_maps(params)?;
 
-        let mut processed = vec![false; self.file.sections.len()];
-        for (idx, sec) in self.file.sections.iter().enumerate() {
-            if processed[idx] {
-                continue;
-            }
-
-            let data = &sec.data;
-            if data.is_empty() {
-                continue;
-            }
-
-            if sec.shdr.shtype == SHT_REL {
-                let rsec = &self.file.sections[sec.shdr.info as usize];
-                processed[idx] = true;
-                processed[sec.shdr.info as usize] = true;
-                let sec_name = &rsec.shdr.name;
-                let is_kprobe = sec_name.starts_with("kprobe/");
-                let is_kretprobe = sec_name.starts_with("kretprobe/");
-                let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
-                let is_cgroup_sock = sec_name.starts_with("cgroup/sock");
-                let is_socket_filter = sec_name.starts_with("socket");
-                let is_tracepoint = sec_name.starts_with("tracepoint/");
-                let is_sched_cls = sec_name.starts_with("sched_cls/");
-                let is_sched_act = sec_name.starts_with("sched_act/");
-
-                let progType = {
-                    if is_kprobe || is_kretprobe {
-                        bpf_prog_type_BPF_PROG_TYPE_KPROBE
-                    } else if is_cgroup_skb {
-                        bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
-                    } else if is_cgroup_sock {
-                        bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
-                    } else if is_socket_filter {
-                        bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
-                    } else if is_tracepoint {
-                        bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
-                    } else if is_sched_act {
-                        bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
-                    } else if is_sched_cls {
-                        bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
-                    } else {
-                        panic!("Invalid prog type");
-                    }
-                };
-
-                if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
-                    || is_tracepoint || is_sched_act || is_sched_cls
-                {
-                    let rdata = &rsec.data;
-                    if rdata.len() == 0 {
+        match self.file {
+            Some(ref f) => {
+                let mut processed = vec![false; f.sections.len()];
+                for (idx, sec) in f.sections.iter().enumerate() {
+                    if processed[idx] {
                         continue;
                     }
 
-                    self.relocate(data, rdata)?;
-
-                    let insns = &rdata[0] as *const u8 as *const bpf_insn;
-                    let prog_fd = bpf_prog_load(
-                        progType,
-                        insns,
-                        rsec.shdr.size as u32,
-                        license.as_ptr() as *const u8,
-                        version,
-                        self.log.as_ptr() as *const u8,
-                        self.log.len() as u32,
-                    );
-                    if prog_fd < 0 {
-                        return Err(format!(
-                            "error while loading {}: \n{}",
-                            sec_name,
-                            ::std::str::from_utf8(&self.log).unwrap()
-                        ));
+                    let data = &sec.data;
+                    if data.is_empty() {
+                        continue;
                     }
-                    if is_kprobe || is_kretprobe {
-                        self.probes.insert(
-                            sec_name.to_string(),
-                            Kprobe {
-                                insns: insns as usize,
-                                fd: prog_fd,
-                                efd: -1,
-                            },
+
+                    if sec.shdr.shtype == SHT_REL {
+                        let rsec = &f.sections[sec.shdr.info as usize];
+                        processed[idx] = true;
+                        processed[sec.shdr.info as usize] = true;
+                        let sec_name = &rsec.shdr.name;
+                        let is_kprobe = sec_name.starts_with("kprobe/");
+                        let is_kretprobe = sec_name.starts_with("kretprobe/");
+                        let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
+                        let is_cgroup_sock = sec_name.starts_with("cgroup/sock");
+                        let is_socket_filter = sec_name.starts_with("socket");
+                        let is_tracepoint = sec_name.starts_with("tracepoint/");
+                        let is_sched_cls = sec_name.starts_with("sched_cls/");
+                        let is_sched_act = sec_name.starts_with("sched_act/");
+
+                        let progType = {
+                            if is_kprobe || is_kretprobe {
+                                bpf_prog_type_BPF_PROG_TYPE_KPROBE
+                            } else if is_cgroup_skb {
+                                bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
+                            } else if is_cgroup_sock {
+                                bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
+                            } else if is_socket_filter {
+                                bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
+                            } else if is_tracepoint {
+                                bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
+                            } else if is_sched_act {
+                                bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
+                            } else if is_sched_cls {
+                                bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
+                            } else {
+                                panic!("Invalid prog type");
+                            }
+                        };
+
+                        if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
+                            || is_tracepoint || is_sched_act || is_sched_cls
+                        {
+                            let rdata = &rsec.data;
+                            if rdata.len() == 0 {
+                                continue;
+                            }
+
+                            self.relocate(data, rdata)?;
+
+                            let insns = &rdata[0] as *const u8 as *const bpf_insn;
+                            let prog_fd = bpf_prog_load(
+                                progType,
+                                insns,
+                                rsec.shdr.size as u32,
+                                license.as_ptr() as *const u8,
+                                version,
+                                self.log.as_ptr() as *const u8,
+                                self.log.len() as u32,
+                            );
+                            if prog_fd < 0 {
+                                return Err(format!(
+                                    "error while loading {}: \n{}",
+                                    sec_name,
+                                    ::std::str::from_utf8(&self.log).unwrap()
+                                ));
+                            }
+                            if is_kprobe || is_kretprobe {
+                                self.probes.insert(
+                                    sec_name.to_string(),
+                                    Kprobe {
+                                        insns: insns as usize,
+                                        fd: prog_fd,
+                                        efd: -1,
+                                    },
+                                );
+                            } else if is_cgroup_sock || is_cgroup_skb {
+                                self.cgroup_programs.insert(
+                                    sec_name.to_string(),
+                                    CgroupProgram {
+                                        insns: insns as usize,
+                                        fd: prog_fd,
+                                    },
+                                );
+                            } else if is_socket_filter {
+                                self.socket_filters.insert(
+                                    sec_name.to_string(),
+                                    SocketFilter {
+                                        insns: insns as usize,
+                                        fd: prog_fd,
+                                    },
+                                );
+                            } else if is_tracepoint {
+                                self.tracepoint_programs.insert(
+                                    sec_name.to_string(),
+                                    TracepointProgram {
+                                        insns: insns as usize,
+                                        fd: prog_fd,
+                                        efd: -1,
+                                    },
+                                );
+                            } else if is_sched_cls || is_sched_act {
+                                self.sched_programs.insert(
+                                    sec_name.to_string(),
+                                    SchedProgram {
+                                        insns: insns as usize,
+                                        fd: prog_fd,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+
+                for (idx, sec) in f.sections.iter().enumerate() {
+                    if processed[idx] {
+                        continue;
+                    }
+
+                    let sec_name = &sec.shdr.name;
+                    let is_kprobe = sec_name.starts_with("kprobe/");
+                    let is_kretprobe = sec_name.starts_with("kretprobe/");
+                    let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
+                    let is_cgroup_sock = sec_name.starts_with("cgroup/sock");
+                    let is_socket_filter = sec_name.starts_with("socket");
+                    let is_tracepoint = sec_name.starts_with("tracepoint/");
+                    let is_sched_cls = sec_name.starts_with("sched_cls/");
+                    let is_sched_act = sec_name.starts_with("sched_act/");
+
+                    let progType = {
+                        if is_kprobe || is_kretprobe {
+                            bpf_prog_type_BPF_PROG_TYPE_KPROBE
+                        } else if is_cgroup_skb {
+                            bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
+                        } else if is_cgroup_sock {
+                            bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
+                        } else if is_socket_filter {
+                            bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
+                        } else if is_tracepoint {
+                            bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
+                        } else if is_sched_act {
+                            bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
+                        } else if is_sched_cls {
+                            bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
+                        } else {
+                            panic!("Invalid prog type");
+                        }
+                    };
+
+                    if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
+                        || is_tracepoint || is_sched_act || is_sched_cls
+                    {
+                        let data = &sec.data;
+                        if data.len() == 0 {
+                            continue;
+                        }
+
+                        let insns = &data[0] as *const u8 as *const bpf_insn;
+                        let prog_fd = bpf_prog_load(
+                            progType,
+                            insns,
+                            sec.shdr.size as u32,
+                            license.as_ptr() as *const u8,
+                            version,
+                            self.log.as_ptr() as *const u8,
+                            self.log.len() as u32,
                         );
-                    } else if is_cgroup_sock || is_cgroup_skb {
-                        self.cgroup_programs.insert(
-                            sec_name.to_string(),
-                            CgroupProgram {
-                                insns: insns as usize,
-                                fd: prog_fd,
-                            },
-                        );
-                    } else if is_socket_filter {
-                        self.socket_filters.insert(
-                            sec_name.to_string(),
-                            SocketFilter {
-                                insns: insns as usize,
-                                fd: prog_fd,
-                            },
-                        );
-                    } else if is_tracepoint {
-                        self.tracepoint_programs.insert(
-                            sec_name.to_string(),
-                            TracepointProgram {
-                                insns: insns as usize,
-                                fd: prog_fd,
-                                efd: -1,
-                            },
-                        );
-                    } else if is_sched_cls || is_sched_act {
-                        self.sched_programs.insert(
-                            sec_name.to_string(),
-                            SchedProgram {
-                                insns: insns as usize,
-                                fd: prog_fd,
-                            },
-                        );
+                        if prog_fd < 0 {
+                            return Err(format!(
+                                "error while loading {}: \n{}",
+                                sec_name,
+                                ::std::str::from_utf8(&self.log).unwrap()
+                            ));
+                        }
+                        if is_kprobe || is_kretprobe {
+                            self.probes.insert(
+                                sec_name.to_string(),
+                                Kprobe {
+                                    insns: insns as usize,
+                                    fd: prog_fd,
+                                    efd: -1,
+                                },
+                            );
+                        } else if is_cgroup_sock || is_cgroup_skb {
+                            self.cgroup_programs.insert(
+                                sec_name.to_string(),
+                                CgroupProgram {
+                                    insns: insns as usize,
+                                    fd: prog_fd,
+                                },
+                            );
+                        } else if is_socket_filter {
+                            self.socket_filters.insert(
+                                sec_name.to_string(),
+                                SocketFilter {
+                                    insns: insns as usize,
+                                    fd: prog_fd,
+                                },
+                            );
+                        } else if is_tracepoint {
+                            self.tracepoint_programs.insert(
+                                sec_name.to_string(),
+                                TracepointProgram {
+                                    insns: insns as usize,
+                                    fd: prog_fd,
+                                    efd: -1,
+                                },
+                            );
+                        } else if is_sched_cls || is_sched_act {
+                            self.sched_programs.insert(
+                                sec_name.to_string(),
+                                SchedProgram {
+                                    insns: insns as usize,
+                                    fd: prog_fd,
+                                },
+                            );
+                        }
                     }
                 }
             }
-        }
-
-        for (idx, sec) in self.file.sections.iter().enumerate() {
-            if processed[idx] {
-                continue;
-            }
-
-            let sec_name = &sec.shdr.name;
-            let is_kprobe = sec_name.starts_with("kprobe/");
-            let is_kretprobe = sec_name.starts_with("kretprobe/");
-            let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
-            let is_cgroup_sock = sec_name.starts_with("cgroup/sock");
-            let is_socket_filter = sec_name.starts_with("socket");
-            let is_tracepoint = sec_name.starts_with("tracepoint/");
-            let is_sched_cls = sec_name.starts_with("sched_cls/");
-            let is_sched_act = sec_name.starts_with("sched_act/");
-
-            let progType = {
-                if is_kprobe || is_kretprobe {
-                    bpf_prog_type_BPF_PROG_TYPE_KPROBE
-                } else if is_cgroup_skb {
-                    bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
-                } else if is_cgroup_sock {
-                    bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
-                } else if is_socket_filter {
-                    bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
-                } else if is_tracepoint {
-                    bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
-                } else if is_sched_act {
-                    bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
-                } else if is_sched_cls {
-                    bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
-                } else {
-                    panic!("Invalid prog type");
-                }
-            };
-
-            if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
-                || is_tracepoint || is_sched_act || is_sched_cls
-            {
-                let data = &sec.data;
-                if data.len() == 0 {
-                    continue;
-                }
-
-                let insns = &data[0] as *const u8 as *const bpf_insn;
-                let prog_fd = bpf_prog_load(
-                    progType,
-                    insns,
-                    sec.shdr.size as u32,
-                    license.as_ptr() as *const u8,
-                    version,
-                    self.log.as_ptr() as *const u8,
-                    self.log.len() as u32,
-                );
-                if prog_fd < 0 {
-                    return Err(format!(
-                        "error while loading {}: \n{}",
-                        sec_name,
-                        ::std::str::from_utf8(&self.log).unwrap()
-                    ));
-                }
-                if is_kprobe || is_kretprobe {
-                    self.probes.insert(
-                        sec_name.to_string(),
-                        Kprobe {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                            efd: -1,
-                        },
-                    );
-                } else if is_cgroup_sock || is_cgroup_skb {
-                    self.cgroup_programs.insert(
-                        sec_name.to_string(),
-                        CgroupProgram {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                        },
-                    );
-                } else if is_socket_filter {
-                    self.socket_filters.insert(
-                        sec_name.to_string(),
-                        SocketFilter {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                        },
-                    );
-                } else if is_tracepoint {
-                    self.tracepoint_programs.insert(
-                        sec_name.to_string(),
-                        TracepointProgram {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                            efd: -1,
-                        },
-                    );
-                } else if is_sched_cls || is_sched_act {
-                    self.sched_programs.insert(
-                        sec_name.to_string(),
-                        SchedProgram {
-                            insns: insns as usize,
-                            fd: prog_fd,
-                        },
-                    );
-                }
-            }
+            None => panic!("Need to load module first!")
         }
         return self.initialize_perf_maps(params);
     }
