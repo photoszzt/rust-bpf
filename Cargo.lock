@@ -221,7 +221,7 @@ dependencies = [
  "quote 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syscall 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "xmas-elf 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xmas-elf 0.6.0 (git+https://github.com/nrc/xmas-elf.git)",
 ]
 
 [[package]]
@@ -316,7 +316,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "xmas-elf"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/nrc/xmas-elf.git#42147025cbdc95c3d97e3ee0f617c7b2d71b7922"
 dependencies = [
  "zero 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -367,5 +367,5 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum which 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "4be6cfa54dab45266e98b5d7be2f8ce959ddd49abd141a05d52dce4b07f803bb"
 "checksum winapi 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)" = "167dc9d6949a9b857f3451275e911c3f44255842c1f7a76f33c55103a909087a"
 "checksum winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d315eee3b34aca4797b2da6b13ed88266e6d612562a0c46390af8299fc699bc"
-"checksum xmas-elf 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "55848ddf550e10f450991a7e15f2e30bccfc48938019de9f91c9cc58140ba64f"
+"checksum xmas-elf 0.6.0 (git+https://github.com/nrc/xmas-elf.git)" = "<none>"
 "checksum zero 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"

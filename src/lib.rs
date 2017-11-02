@@ -4,7 +4,6 @@
 
 extern crate bcc_sys;
 extern crate byteorder;
-extern crate elf;
 #[macro_use]
 extern crate lazy_static;
 extern crate libc;
@@ -12,6 +11,7 @@ extern crate nix;
 extern crate regex;
 #[macro_use]
 extern crate syscall;
+extern crate xmas_elf;
 
 pub mod perf_event_bindings;
 pub mod bpf;

@@ -1,7 +1,7 @@
 extern crate bcc_sys;
-extern crate xmas_elf;
 extern crate libc;
 extern crate nix;
+extern crate xmas_elf;
 
 use bcc_sys::bccapi::*;
 use bpf::bpf_map_def;
@@ -21,8 +21,9 @@ use std::path::Path;
 use perf_event_bindings::*;
 use bpf_elf::perf_event::PERF_EVENT_IOC_ENABLE;
 use bpf::bpf_attr_ext;
-use xmas_elf::header::{Data, Class};
 use xmas_elf::sections::{SectionData, ShType};
+use xmas_elf::symbol_table::Entry;
+use xmas_elf::header::Data;
 
 const USE_CURRENT_KERNEL_VERSION: u32 = 0xFFFE;
 
@@ -127,37 +128,36 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
             ::std::mem::size_of::<bpf_attr>()
         )
     };
-    if let Some(raw_os_err) = Error::last_os_error().raw_os_error() {
-        if raw_os_err == libc::EPERM {
-            // When EPERM is returned, two reasons are possible:
-            // 1. user has no permissions for bpf()
-            // 2. user has insufficent rlimit for locked memory
-            // Unfortunately, there is no api to inspect the current usage of locked
-            // mem for the user, so an accurate calculation of how much memory to lock
-            // for this new program is difficult to calculate. As a hack, bump the limit
-            // to unlimited. If program load fails again, return the error.
-            let mut rl = libc::rlimit {
-                rlim_cur: 0,
-                rlim_max: 0,
-            };
-            unsafe {
-                if libc::getrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
-                    rl.rlim_max = libc::RLIM_INFINITY;
-                    rl.rlim_cur = rl.rlim_max;
-                    if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
-                        ret = syscall!(
-                            BPF,
-                            bpf_cmd_BPF_MAP_CREATE,
-                            &attr as *const _ as usize,
-                            ::std::mem::size_of::<bpf_attr>()
-                        );
-                    } else {
-                        println!(
-                            "setrlimit() failed with errno={}",
-                            Error::last_os_error().raw_os_error().unwrap()
-                        );
-                        return -1;
-                    }
+    println!("errno: {}, ret: {}", nix::errno::errno(), ret);
+    if nix::errno::errno() == libc::EPERM {
+        // When EPERM is returned, two reasons are possible:
+        // 1. user has no permissions for bpf()
+        // 2. user has insufficent rlimit for locked memory
+        // Unfortunately, there is no api to inspect the current usage of locked
+        // mem for the user, so an accurate calculation of how much memory to lock
+        // for this new program is difficult to calculate. As a hack, bump the limit
+        // to unlimited. If program load fails again, return the error.
+        let mut rl = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        unsafe {
+            if libc::getrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
+                rl.rlim_max = libc::RLIM_INFINITY;
+                rl.rlim_cur = rl.rlim_max;
+                if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
+                    ret = syscall!(
+                        BPF,
+                        bpf_cmd_BPF_MAP_CREATE,
+                        &attr as *const _ as usize,
+                        ::std::mem::size_of::<bpf_attr>()
+                    );
+                } else {
+                    println!(
+                        "setrlimit() failed with errno={}",
+                        Error::last_os_error().raw_os_error().unwrap()
+                    );
+                    return -1;
                 }
             }
         }
@@ -165,15 +165,7 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
     return ret as i32;
 }
 
-fn bpf_prog_load(
-    prog_type: bpf_prog_type,
-    insns: *const bpf_insn,
-    prog_len: u32,
-    license: *const u8,
-    kern_version: u32,
-    log_buf: *const u8,
-    log_size: u32,
-) -> i32 {
+fn bpf_prog_load(prog_type: bpf_prog_type, insns: *const bpf_insn, prog_len: u32, license: *const u8, kern_version: u32, log_buf: *const u8, log_size: u32) -> i32 {
     let insns_cnt = prog_len / (::std::mem::size_of::<bpf_insn>() as u32);
     let attr = bpf_attr::bpf_attr_prog_load(
         prog_type as u32,
@@ -233,56 +225,47 @@ fn bpf_prog_load(
 }
 
 fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String> {
-    let map_dev_ = map_def.clone();
     let mut map = bpf_map {
         fd: 1,
-        def: map_dev_,
+        def: map_def.clone(),
     };
+    let mut do_pin = false;
     if map_def.pinning == PIN_OBJECT_NS {
         return Err("Not support object pinning".to_string());
     } else if map_def.pinning == PIN_GLOBAL_NS || map_def.pinning == PIN_CUSTOM_NS {
-        if nix::sys::stat::stat(path)
-            .map_err(|e| format!("Stat fail: {}", e))
-            .is_ok()
+        if nix::sys::stat::stat(path).is_ok()
         {
-            let fd = unsafe {
-                bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8)
-            };
+            let fd = unsafe { bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8) };
             if fd < 0 {
                 return Err("Fail to get pinned obj fd".to_string());
             }
             map.fd = fd as i32;
             return Ok(map);
         } else {
-            map.fd = bpf_create_map(
-                map_def.type_,
-                map_def.key_size,
-                map_def.value_size,
-                map_def.max_entries,
-            );
-
-            if map.fd < 0 {
-                return Err("Fail to create map".to_string());
-            }
-
-            let fd = unsafe {
-                bpf_obj_pin(
-                    map.fd,
-                    path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8,
-                )
-            };
-            if fd < 0 {
-                return Err("Fail to pin object".to_string());
-            }
-            Ok(map)
+            do_pin = true;
         }
-    } else {
-        return Err("Can't recognize pinning config".to_string());
     }
-}
-
-fn stringify_stdio(error: Error) -> String {
-    format!("{}", error)
+    map.fd = bpf_create_map(
+        map_def.type_,
+        map_def.key_size,
+        map_def.value_size,
+        map_def.max_entries,
+    );
+    if map.fd < 0 {
+        return Err("Fail to create map".to_string());
+    }
+    if do_pin {
+        let fd = unsafe {
+            bpf_obj_pin(
+                map.fd,
+                path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8,
+            )
+        };
+        if fd < 0 {
+            return Err("Fail to pin object".to_string());
+        }
+    }
+    Ok(map)
 }
 
 fn create_pin_path(path: &Path) -> Result<(), String> {
@@ -295,7 +278,7 @@ fn create_pin_path(path: &Path) -> Result<(), String> {
 }
 
 impl bpf_map_def {
-    pub fn get_map_path(&self, map_name: &str, pin_path: &str) -> Result<PathBuf, String> {
+    pub fn get_map_path(&self, map_name: &str, pin_path: Option<&str>) -> Result<PathBuf, String> {
         match self.pinning {
             PIN_OBJECT_NS => Err("Not implemented yet".to_string()),
             PIN_GLOBAL_NS => {
@@ -320,13 +303,13 @@ impl bpf_map_def {
                 )
             }
             PIN_CUSTOM_NS => {
-                if pin_path == "" {
+                if pin_path.is_none() {
                     return Err(format!(
                         "no pin path given for map {} with PIN_CUSTOM_NS",
                         map_name
                     ));
                 }
-                Ok([BPFFS_PATH, pin_path].iter().collect())
+                Ok([BPFFS_PATH, pin_path.unwrap()].iter().collect())
             }
             _ => {
                 // map is not pinned
@@ -335,28 +318,25 @@ impl bpf_map_def {
         }
     }
 
-    pub fn create_map_path(
-        &self,
-        map_name: &str,
-        params: &SectionParams,
-    ) -> Result<PathBuf, String> {
-        let map_path = self.get_map_path(map_name, &params.pin_path)?;
-
-        if bpf_map_def::validate_path(&map_path).is_err() {
-            return Err(format!("invalid path {:?}", &map_path));
+    pub fn create_map_path(&self, map_name: &str, params: Option<&SectionParams>) -> Result<PathBuf, String> {
+        let map_path = self.get_map_path(map_name, params.map(|p| p.pin_path.as_str()))?;
+        if map_path != Path::new("") {
+            if bpf_map_def::validate_path(&map_path).is_err() {
+                return Err(format!("invalid path {:?}", &map_path));
+            }
+            create_pin_path(&map_path)?;
         }
-        create_pin_path(&map_path)?;
         return Ok(map_path);
     }
 
-    pub fn validate_path(path: &Path) -> ::std::io::Result<PathBuf> {
+    pub fn validate_path(path: &Path) -> ::std::io::Result<()> {
         if !path.starts_with(BPFFS_PATH) {
             Err(Error::new(
                 ErrorKind::Other,
                 "path doesn't start with bpffs path",
             ))
         } else {
-            path.canonicalize()
+            Ok(())
         }
     }
 }
@@ -382,7 +362,7 @@ fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
 }
 
 
-impl Module {
+impl<'a> Module<'a> {
     fn elf_read_license(&self) -> Result<String, String> {
         match self.file.find_section_by_name("license") {
             Some(s) => match ::std::str::from_utf8(s.raw_data(&self.file)) {
@@ -401,23 +381,25 @@ impl Module {
                     return Err("version is not a __u32".to_string());
                 }
                 let mut buf = Cursor::new(data);
-                match buf.read_u32::<LittleEndian>() {
-                    Ok(res) => Ok(res),
-                    Err(_) => Err("Fail to read version".to_string()),
+                match self.file.header.pt1.data() {
+                    Data::LittleEndian => buf.read_u32::<LittleEndian>()
+                        .map_err(|e| format!("Fail to read version: {}", e)),
+                    Data::BigEndian => buf.read_u32::<BigEndian>()
+                        .map_err(|e| format!("Fail to read version: {}", e)),
+                    _ => Err("Unrecognized endien".to_string()),
                 }
             }
             None => Err("Failed to look up version section".to_string()),
         }
     }
 
-    fn elf_read_maps(
-        &self,
-        params: &HashMap<String, SectionParams>,
-    ) -> Result<HashMap<String, EbpfMap>, String> {
+    fn elf_read_maps(&self, params: &HashMap<String, SectionParams>) -> Result<HashMap<String, EbpfMap>, String> {
         let mut maps: HashMap<String, EbpfMap> = HashMap::new();
-        for sec in &self.file.section_iter {
+        let mut sect_iter = self.file.section_iter();
+        sect_iter.next();
+        for sec in sect_iter {
             let name = sec.get_name(&self.file)?;
-            if name.starts_with("maps/") {
+            if !name.starts_with("maps/") {
                 continue;
             }
             let data = sec.raw_data(&self.file);
@@ -428,7 +410,7 @@ impl Module {
                 ));
             }
 
-            let name = name.trim_left_matches("maps/");
+            let trim_name = name.trim_left_matches("maps/");
             let map_def = unsafe {
                 let map_def_ptr = &data[0] as *const u8 as *const bpf_map_def;
                 if map_def_ptr.is_null() {
@@ -437,15 +419,17 @@ impl Module {
                     &*map_def_ptr
                 }
             };
-            let map_path = map_def.create_map_path(name, &params[&sec.shdr.name])?;
+            println!("name: {}, trim_name: {}", name, trim_name);
+            let map_path = map_def.create_map_path(trim_name, params.get(name))?;
+            println!("map_path: {:?}", map_path);
             let map = bpf_load_map(map_def, &map_path)?;
-            if let Some(oldMap) = maps.get(name) {
-                return Err(format!("Duplicate map: {} and {}", oldMap.name, name));
+            if let Some(oldMap) = maps.get(trim_name) {
+                return Err(format!("Duplicate map: {} and {}", oldMap.name, trim_name));
             }
             maps.insert(
-                name.to_string(),
+                trim_name.to_string(),
                 EbpfMap {
-                    name: name.to_string(),
+                    name: trim_name.to_string(),
                     m: map,
                     headers: Vec::new(),
                     page_count: 0,
@@ -456,7 +440,51 @@ impl Module {
         Ok(maps)
     }
 
-    fn relocate(&self, data: &SectionData, rdata: &Vec<u8>) -> Result<(), String> {
+    fn process_symbol<T: Entry>(&self, symbol: &T, rdata: &[u8], offset: usize) -> Result<(), String> {
+        let rinsn = unsafe { &mut *(&rdata[offset] as *const u8 as *const bpf_insn as *mut bpf_insn) };
+        if rinsn.code != (BPF_LD | BPF_IMM | BPF_DW) as u8 {
+            let symbol_sec = self.file
+                .section_header(symbol.shndx())
+                .map_err(|e| e.to_string())?;
+            return Err(format!(
+                "invalid relocation: symbol name={}\nsymbol section: Name={}, Type={:?}, Flags={}",
+                symbol.get_name(&self.file).unwrap(),
+                symbol_sec.get_name(&self.file).unwrap(),
+                symbol_sec.get_type().unwrap(),
+                symbol_sec.flags()
+            ));
+        }
+
+        let symbol_sec = self.file
+            .section_header(symbol.shndx())
+            .map_err(|e| e.to_string())?;
+        let symbol_sec_name = symbol_sec.get_name(&self.file).unwrap();
+        let symbol_name = symbol.get_name(&self.file).unwrap();
+        if !symbol_sec_name.starts_with("maps/") {
+            return Err(format!(
+                "map location not supported: map {} is in section {} instead of \"maps/{}\"",
+                symbol_name,
+                symbol_sec.get_name(&self.file).unwrap(),
+                symbol_name,
+            ));
+        }
+        let trim_symbol_sec_name = symbol_sec_name.trim_left_matches("maps/");
+        let m = match self.maps.get(trim_symbol_sec_name) {
+            Some(res) => res,
+            None => {
+                return Err(format!(
+                    "relocation error, symbol {} not found in section {}",
+                    symbol_name,
+                    symbol_sec_name
+                ))
+            }
+        };
+        rinsn.set_src_reg(BPF_PSEUDO_MAP_FD as u8);
+        rinsn.imm = m.m.fd;
+        Ok(())
+    }
+
+    fn relocate(&self, data: &SectionData, rdata: &[u8]) -> Result<(), String> {
         let symtab_sec = match self.file.find_section_by_name(".symtab") {
             Some(s) => s,
             None => return Err("Fail to get symbol table".to_string()),
@@ -470,121 +498,38 @@ impl Module {
                 ))
             }
         };
-        let rel_arr = match data {
-            SectionData::Rel64(ref r64_arr) => r64_arr,
-            SectionData::Rel32(ref r32_arr) => r32_arr,
-            _ => panic!("Passing in wrong section")
-        };
-        for rel in rel_arr {
-            let off = rel.get_offset();
-            let info = rel.get_type();
-            let sym_no = rel.get_symbol_table_index();
-            let symbol = match symtab_sec {
-                SectionData::SymbolTable64(ss) => ss[(sym_no - 1) as usize].clone(),
-                SectionData::SymbolTable32(ss) => ss[(sym_no - 1) as usize].clone(),
-                _ => unreachable!(),
-            };
-            // let (symbol, offset) = match self.file.header.pt1.class() {
-            //     Class::SixtyFour => {
-            //         let mut buf = Cursor::new(data);
-            //         match self.file.header.pt1.data() {
-            //             Data::LittleEndian => {
-            //                 let off = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
-            //                 let info = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
-            //                 let sym_no = info >> 32;
-            //                 match symbols {
-            //                     SectionData::SymbolTable64(ss) => {
-            //                         (ss[(sym_no - 1) as usize].clone(), off)
-            //                     },
-            //                     _ => panic!("Getting wrong symbols, expecting 64 bit symbol table")
-            //                 }
-            //             }
-            //             Data::BigEndian => {
-            //                 let off = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
-            //                 let info = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
-            //                 let sym_no = info >> 32;
-            //                 match symbols {
-            //                     SectionData::SymbolTable64(ss) => {
-            //                         (ss[(sym_no - 1) as usize].clone(), off)
-            //                     },
-            //                     _ => panic!("Getting wrong symbols, expecting 64 bit symbol table")
-            //                 }
-            //             }
-            //             _ => panic!("Unrecognize endian encoding"),
-            //         }
-            //     }
-            //     Class::ThirtyTwo => {
-            //         let mut buf = Cursor::new(data);
-            //         match self.file.header.pt1.data() {
-            //             Data::LittleEndian => {
-            //                 let off = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
-            //                 let info = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
-            //                 let sym_no = info >> 8;
-            //                 match symbols {
-            //                     SectionData::SymbolTable32(ss) => {
-            //                         (ss[(sym_no - 1) as usize].clone(), off)
-            //                     },
-            //                     _ => panic!("Getting wrong symbols, expecting 32 bit symbol table")
-            //                 }
-            //             }
-            //             Data::BigEndian => {
-            //                 let off = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
-            //                 let info = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
-            //                 let sym_no = info >> 8;
-            //                 match symbols {
-            //                     SectionData::SymbolTable32(ss) => {
-            //                         (ss[(sym_no - 1) as usize].clone(), off)
-            //                     },
-            //                     _ => panic!("Getting wrong symbols, expecting 32 bit symbol table")
-            //                 }
-            //             }
-            //             _ => panic!("Unrecognize endian encoding"),
-            //         }
-            //     }
-            //     _ => panic!("Unrecognize elf class"),
-            // };
-            let rinsn = unsafe {
-                &mut *(&rdata[offset as usize] as *const u8 as *const bpf_insn as *mut bpf_insn)
-            };
-            if rinsn.code != (BPF_LD | BPF_IMM | BPF_DW) as u8 {
-                let symbol_sec = self.file.section_header(symbol.shndx());
-                return Err(format!(
-                    "invalid relocation: symbol name={}\nsymbol section: Name={}, Type={}, Flags={}",
-                    symbol.get_name(&self.file).unwrap(),
-                    symbol_sec.get_name(&self.file).unwrap(),
-                    symbol_sec.get_type(&self.file).unwrap(),
-                    symbol_sec.flags()
-                ));
-            }
-
-            let symbol_sec = self.file.section_header(symbol.shndx());
-            let symbol_sec_name = symbol_sec.get_name(&self.file).unwrap();
-            let symbol_name = symbol.get_name(&self.file).unwrap();
-            if !symbol_sec_name.starts_with("maps/") {
-                return Err(format!(
-                    "map location not supported: map {} is in section {} instead of \"maps/{}\"",
-                    symbol_name,
-                    symbol_sec.get_name(&self.file).unwrap(),
-                    symbol_name,
-                ));
-            }
-            let name = symbol_sec_name.trim_left_matches("maps/");
-            let m = match self.maps.get(name) {
-                Some(res) => res,
-                None => {
-                    return Err(format!(
-                        "relocation error, symbol {} not found in section {}",
-                        symbol_name,
-                        symbol_sec_name
-                    ))
+        if let &SectionData::Rel64(r64_arr) = data {
+            for rel in r64_arr {
+                let offset = rel.get_offset();
+                let sym_no = rel.get_symbol_table_index();
+                match symbols {
+                    SectionData::SymbolTable64(ss) => {
+                        let symbol = &ss[(sym_no - 1) as usize];
+                        self.process_symbol(symbol, rdata, offset as usize)?;
+                    }
+                    _ => panic!("Wrong symbol table entry, expecting 64 bit symbol table entry".to_string()),
                 }
-            };
-            rinsn.set_src_reg(BPF_PSEUDO_MAP_FD as u8);
-            rinsn.imm = m.m.fd;
+            }
+            Ok(())
+        } else if let &SectionData::Rel32(r32_arr) = data {
+            for rel in r32_arr {
+                let offset = rel.get_offset();
+                let sym_no = rel.get_symbol_table_index();
+                match symbols {
+                    SectionData::SymbolTable32(ss) => {
+                        let symbol = &ss[(sym_no - 1) as usize];
+                        self.process_symbol(symbol, rdata, offset as usize)?;
+                    }
+                    _ => panic!("Wrong symbol table entry, expecting 64 bit symbol table entry".to_string()),
+                }
+            }
+            Ok(())
+        } else {
+            Err("Wrong section data, expecting Rel".to_string())
         }
     }
 
-    pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
+    pub fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
         let license = self.elf_read_license()?;
 
         let version = {
@@ -610,10 +555,12 @@ impl Module {
             match sec_shtype {
                 ShType::Rel => {
                     let data = sec.get_data(&self.file).map_err(|e| e.to_string())?;
-                    let rsec = self.file.section_header(sec.shdr.info);
+                    let rsec = self.file
+                        .section_header(sec.info() as u16)
+                        .map_err(|e| e.to_string())?;
                     processed[idx] = true;
-                    processed[sec.shdr.info as usize] = true;
-                    let sec_name = &rsec.shdr.name;
+                    processed[sec.info() as usize] = true;
+                    let sec_name = rsec.get_name(&self.file).map_err(|e| e.to_string())?;
                     let is_kprobe = sec_name.starts_with("kprobe/");
                     let is_kretprobe = sec_name.starts_with("kretprobe/");
                     let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
@@ -643,21 +590,19 @@ impl Module {
                         }
                     };
 
-                    if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
-                        || is_tracepoint || is_sched_act || is_sched_cls
-                    {
-                        let rdata = &rsec.data;
+                    if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint || is_sched_act || is_sched_cls {
+                        let rdata = rsec.raw_data(&self.file);
                         if rdata.len() == 0 {
                             continue;
                         }
 
-                        self.relocate(data, rdata)?;
+                        self.relocate(&data, rdata)?;
 
                         let insns = &rdata[0] as *const u8 as *const bpf_insn;
                         let prog_fd = bpf_prog_load(
                             progType,
                             insns,
-                            rsec.shdr.size as u32,
+                            rsec.size() as u32,
                             license.as_ptr() as *const u8,
                             version,
                             self.log.as_ptr() as *const u8,
@@ -719,12 +664,15 @@ impl Module {
             }
         }
 
-        for (idx, sec) in f.sections.iter().enumerate() {
+        for (idx, sec) in self.file.section_iter().enumerate() {
             if processed[idx] {
                 continue;
             }
-
-            let sec_name = &sec.shdr.name;
+            let sec_shtype = sec.get_type().map_err(|e| e.to_string())?;
+            if let ShType::Null = sec_shtype {
+                continue;
+            }
+            let sec_name = sec.get_name(&self.file).map_err(|e| e.to_string())?;
             let is_kprobe = sec_name.starts_with("kprobe/");
             let is_kretprobe = sec_name.starts_with("kretprobe/");
             let is_cgroup_skb = sec_name.starts_with("cgroup/skb");
@@ -754,10 +702,8 @@ impl Module {
                 }
             };
 
-            if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter
-                || is_tracepoint || is_sched_act || is_sched_cls
-            {
-                let data = &sec.data;
+            if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint || is_sched_act || is_sched_cls {
+                let data = sec.raw_data(&self.file);
                 if data.len() == 0 {
                     continue;
                 }
@@ -766,7 +712,7 @@ impl Module {
                 let prog_fd = bpf_prog_load(
                     progType,
                     insns,
-                    sec.shdr.size as u32,
+                    sec.size() as u32,
                     license.as_ptr() as *const u8,
                     version,
                     self.log.as_ptr() as *const u8,
@@ -827,18 +773,13 @@ impl Module {
         return self.initialize_perf_maps(params);
     }
 
-    fn initialize_perf_maps(
-        &mut self,
-        params: &HashMap<String, SectionParams>,
-    ) -> Result<(), String> {
+    fn initialize_perf_maps(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
         for (name, m) in self.maps.iter_mut() {
             if m.m.def.type_ != bpf_map_type_BPF_MAP_TYPE_PERF_EVENT_ARRAY as u32 {
                 continue;
             }
 
-            let pg_size = match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE)
-                .map_err(|e| format!("Fail to get page size: {}", e))?
-            {
+            let pg_size = match nix::unistd::sysconf(nix::unistd::SysconfVar::PAGE_SIZE).map_err(|e| format!("Fail to get page size: {}", e))? {
                 Some(res) => res,
                 None => return Err("Fail to get page size".to_string()),
             };
@@ -850,9 +791,7 @@ impl Module {
                     continue;
                 }
                 if param.perf_ring_buffer_page_count > 0 {
-                    if param.perf_ring_buffer_page_count & (param.perf_ring_buffer_page_count - 1)
-                        != 0
-                    {
+                    if param.perf_ring_buffer_page_count & (param.perf_ring_buffer_page_count - 1) != 0 {
                         return Err(format!(
                             "number of pages {} must be strictly positive and a power of 2",
                             param.perf_ring_buffer_page_count

@@ -5,7 +5,6 @@ extern crate xmas_elf;
 
 use std::collections::HashMap;
 use bcc_sys::bccapi::*;
-use elf;
 use bpf_elf::elf::EbpfMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Error, ErrorKind};
@@ -14,11 +13,12 @@ use bpf_elf::perf_event::{PERF_EVENT_IOC_ENABLE, PERF_EVENT_IOC_SET_BPF};
 use std::str::FromStr;
 use std::io::{Read, Write};
 use std::os::unix::io::AsRawFd;
+use std::path::Path;
 use bpf::{bpf_prog_attach, bpf_prog_detach};
 use bpf_elf;
+use xmas_elf::{ElfFile, header};
 
 pub struct Module<'a> {
-    pub file_name: String,
     pub file: xmas_elf::ElfFile<'a>,
     pub log: Vec<u8>,
     pub maps: HashMap<String, EbpfMap>,
@@ -69,23 +69,15 @@ pub struct CloseOptions {
 
 impl CloseOptions {
     pub fn new(unpin: bool, pin_path: String) -> CloseOptions {
-        CloseOptions {
-            unpin,
-            pin_path,
-        }
+        CloseOptions { unpin, pin_path }
     }
 }
 
 const kprobe_events_filename: &'static str = "/sys/kernel/debug/tracing/kprobe_events";
 
 impl CgroupProgram {
-    pub fn attach_cgroup_program(
-        &self,
-        cgroup_path: &str,
-        attach_type: bpf_attach_type,
-    ) -> Result<(), String> {
-        let f = File::open(cgroup_path)
-            .map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
+    pub fn attach_cgroup_program(&self, cgroup_path: &str, attach_type: bpf_attach_type) -> Result<(), String> {
+        let f = File::open(cgroup_path).map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
         let cgroup_fd = f.as_raw_fd();
         let ret = bpf_prog_attach(self.fd as u32, cgroup_fd as u32, attach_type);
         if ret < 0 {
@@ -98,13 +90,8 @@ impl CgroupProgram {
         Ok(())
     }
 
-    pub fn detach_cgroup_program(
-        &self,
-        cgroup_path: &str,
-        attach_type: bpf_attach_type,
-    ) -> Result<(), String> {
-        let f = File::open(cgroup_path)
-            .map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
+    pub fn detach_cgroup_program(&self, cgroup_path: &str, attach_type: bpf_attach_type) -> Result<(), String> {
+        let f = File::open(cgroup_path).map_err(|e| format!("Error opening cgroup {}: {}", cgroup_path, e))?;
         let cgroup_fd = f.as_raw_fd();
         let ret = bpf_prog_detach(self.fd as u32, cgroup_fd as u32, attach_type);
         if ret < 0 {
@@ -164,13 +151,7 @@ impl SocketFilter {
 
 impl Kprobe {
     fn perf_event_open_tracepoint(id: u64, prog_fd: i32) -> Result<i32, String> {
-        let efd = TracepointProgram::perf_event_open_tracepoint(
-            id,
-            -1,
-            0,
-            -1,
-            PERF_FLAG_FD_CLOEXEC as u64,
-        );
+        let efd = TracepointProgram::perf_event_open_tracepoint(id, -1, 0, -1, PERF_FLAG_FD_CLOEXEC as u64);
         if efd < 0 {
             return Err(format!("perf event open error: {}", nix::errno::errno()));
         }
@@ -191,13 +172,10 @@ impl Kprobe {
         Ok(efd)
     }
 
-    fn write_kprobe_event(
-        probe_type: &str,
-        event_name: &str,
-        func_name: &str,
-        maxactive_str: &str,
-    ) -> Result<i32, ::std::io::Error> {
-        let mut f = OpenOptions::new().append(true).open(kprobe_events_filename)?;
+    fn write_kprobe_event(probe_type: &str, event_name: &str, func_name: &str, maxactive_str: &str) -> Result<i32, ::std::io::Error> {
+        let mut f = OpenOptions::new()
+            .append(true)
+            .open(kprobe_events_filename)?;
         let cmd = format!(
             "{}{}:{} {}",
             probe_type,
@@ -220,8 +198,7 @@ impl Kprobe {
         };
         let mut buffer = String::new();
         kprobeIdFile.read_to_string(&mut buffer)?;
-        let kprobe_id = i32::from_str(buffer.trim())
-            .map_err(|e| Error::new(ErrorKind::Other, format!("{}", e)))?;
+        let kprobe_id = i32::from_str(buffer.trim()).map_err(|e| Error::new(ErrorKind::Other, format!("{}", e)))?;
         return Ok(kprobe_id);
     }
 
@@ -242,15 +219,13 @@ impl Kprobe {
             (probe_type, func_name, "".to_string())
         };
         let event_name = format!("{}{}", probe_type, func_name);
-        let kprobeid_res =
-            Kprobe::write_kprobe_event(probe_type, &event_name, func_name, &maxactive_str);
+        let kprobeid_res = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, &maxactive_str);
         let kprobeid;
         if let Err(e) = kprobeid_res {
             if e.kind() == ErrorKind::Other && e.get_ref().map_or(false, |inner_err| {
                 inner_err.description() == "Can't find kprobe id"
             }) {
-                kprobeid = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, "")
-                    .map_err(|e| format!("Fail to write kprobe event: {}", e))?;
+                kprobeid = Kprobe::write_kprobe_event(probe_type, &event_name, func_name, "").map_err(|e| format!("Fail to write kprobe event: {}", e))?;
             } else {
                 return Err(format!("Fail to write kprobe event: {}", e));
             }
@@ -281,13 +256,7 @@ impl Kprobe {
 }
 
 impl TracepointProgram {
-    fn perf_event_open_tracepoint(
-        tracepoint_id: u64,
-        pid: i32,
-        cpu: u32,
-        group_fd: i32,
-        flags: u64,
-    ) -> i32 {
+    fn perf_event_open_tracepoint(tracepoint_id: u64, pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
         let attr: perf_event_attr = perf_event_attr::gen_perf_event_attr_open_tracepoint(
             perf_type_id_PERF_TYPE_TRACEPOINT,
             perf_event_sample_format_PERF_SAMPLE_RAW,
@@ -319,8 +288,7 @@ impl TracepointProgram {
         tracepoint_file
             .read_to_string(&mut buffer)
             .map_err(|e| format!("Cannot read tracepoint file: {}", e))?;
-        let tracepoint_id =
-            i32::from_str(buffer.trim()).map_err(|e| format!("Invalid tracepoint id: {}", e))?;
+        let tracepoint_id = i32::from_str(buffer.trim()).map_err(|e| format!("Invalid tracepoint id: {}", e))?;
         return Ok(tracepoint_id);
     }
 
@@ -336,27 +304,30 @@ impl TracepointProgram {
 
 impl EbpfMap {
     pub fn unpin(&self, pin_path: &str, sec_name: &str) -> Result<(), String> {
-        let map_path = self.m.def.get_map_path(sec_name, pin_path)?;
+        let map_path = self.m.def.get_map_path(sec_name, Some(pin_path))?;
         ::std::fs::remove_file(map_path).map_err(|e| format!("Fail to remove file: {}", e))?;
         Ok(())
     }
 }
 
-impl Module {
-    pub fn new<'a>(file_name: String) -> Result<Module<'a>, String> {
-        let path = PathBuf::from(&self.file_name);
-        let file = match ::std::fs::File::open(path) {
+impl<'a> Module<'a> {
+    pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, String> {
+        let mut file = match ::std::fs::File::open(path) {
             Ok(r) => r,
-            Err(e) => return Err(format!("Fail to open file {}: {}", self.file_name, e)),
+            Err(e) => return Err(format!("Fail to open file: {}", e)),
         };
         let mut buf = Vec::new();
         match file.read_to_end(&mut buf) {
             Ok(_) => (),
-            Err(e) => return Err(format!("Fail to read file {} to end: {}", self.file_name, e)),
+            Err(e) => return Err(format!("Fail to read file to end: {}", e)),
         }
-        let elf_file = ElfFile::new(&buf).map_err(|e| format!("Fail to parse elf file: {}", e));
-        Module {
-            file_name,
+        Ok(buf)
+    }
+
+    pub fn new(buf: &'a Vec<u8>) -> Result<Module<'a>, String> {
+        let elf_file = ElfFile::new(buf).map_err(|e| format!("Fail to parse elf file: {}", e))?;
+        header::sanity_check(&elf_file)?;
+        Ok(Module {
             file: elf_file,
             log: Vec::new(),
             maps: HashMap::new(),
@@ -365,7 +336,7 @@ impl Module {
             socket_filters: HashMap::new(),
             tracepoint_programs: HashMap::new(),
             sched_programs: HashMap::new(),
-        }
+        })
     }
 
     /// EnableKprobe enables a kprobe/kretprobe identified by secName.
@@ -451,10 +422,7 @@ impl Module {
         Ok(())
     }
 
-    pub fn close_maps<'a>(
-        &self,
-        options: Option<&'a HashMap<String, CloseOptions>>,
-    ) -> Result<(), String> {
+    pub fn close_maps(&self, options: Option<&'a HashMap<String, CloseOptions>>) -> Result<(), String> {
         for (name, m) in &self.maps {
             if let Some(ops) = options {
                 if let Some(option) = ops.get(&format!("maps/{}", name)) {
@@ -463,11 +431,7 @@ impl Module {
                         let pin_path = match map_def.pinning {
                             bpf_elf::elf::PIN_CUSTOM_NS => &option.pin_path,
                             bpf_elf::elf::PIN_GLOBAL_NS => "",
-                            bpf_elf::elf::PIN_OBJECT_NS => {
-                                return Err(
-                                    "unpinning with PIN_OBJECT_NS is to be implemented".to_string(),
-                                )
-                            }
+                            bpf_elf::elf::PIN_OBJECT_NS => return Err("unpinning with PIN_OBJECT_NS is to be implemented".to_string()),
                             _ => return Err(format!("Unrecognized pinning: {}", map_def.pinning)),
                         };
                         m.unpin(pin_path, &name)?;
@@ -501,10 +465,7 @@ impl Module {
         return self.close_ext(None);
     }
 
-    pub fn close_ext<'a>(
-        &mut self,
-        options: Option<&'a HashMap<String, CloseOptions>>,
-    ) -> Result<(), String> {
+    pub fn close_ext(&mut self, options: Option<&'a HashMap<String, CloseOptions>>) -> Result<(), String> {
         self.close_maps(options)?;
         self.close_probes()?;
         self.close_cgroup_programs()?;

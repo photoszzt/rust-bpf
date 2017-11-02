@@ -1,6 +1,6 @@
-extern crate rust_bpf;
 #[macro_use]
 extern crate quote;
+extern crate rust_bpf;
 
 use rust_bpf::bcc;
 use std::ffi::CString;

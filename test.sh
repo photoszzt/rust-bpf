@@ -3,4 +3,4 @@ PWD=$(pwd)
 cd $PWD/tests
 ./build
 cd -
-$HOME/.cargo/bin/cargo test
+RUST_BACKTRACE=1 $HOME/.cargo/bin/cargo test $@ -- --nocapture

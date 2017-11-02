@@ -14,13 +14,10 @@ const WHITELIST_TYPES: &'static [&'static str] = &[
     "perf_sw_ids",
 ];
 
-const WHITELIST_VARS: &'static [&'static str] = &[
-    "PERF_FLAG_FD_CLOEXEC",
-];
+const WHITELIST_VARS: &'static [&'static str] = &["PERF_FLAG_FD_CLOEXEC"];
 
 fn build_ebpf_perf_bindings() {
-    let mut bindings = bindgen::Builder::default()
-        .header("/usr/include/linux/perf_event.h");
+    let mut bindings = bindgen::Builder::default().header("/usr/include/linux/perf_event.h");
 
     for ty in WHITELIST_TYPES {
         bindings = bindings.whitelist_type(ty);
@@ -60,12 +57,12 @@ fn build_ebpf_perf_bindings() {
     if have_working_rustfmt {
         let output = process::Command::new("rustup")
             .args(&[
-                  "run",
-                  "nightly",
-                  "rustfmt",
-                  "--config-path",
-                  concat!(env!("CARGO_MANIFEST_DIR"), "/rustfmt.toml"),
-                  concat!(env!("CARGO_MANIFEST_DIR"), "/src/perf_event_bindings.rs"),
+                "run",
+                "nightly",
+                "rustfmt",
+                "--config-path",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/src/rustfmt.toml"),
+                concat!(env!("CARGO_MANIFEST_DIR"), "/src/perf_event_bindings.rs"),
             ])
             .output()
             .expect("fail to execute `rustup run nightly rustfmt`");
@@ -74,11 +71,13 @@ fn build_ebpf_perf_bindings() {
         println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         assert!(output.status.success());
     } else {
-        println!("
+        println!(
+            "
         The latest `rustfmt` is required to format the generated bindings. Install
             `rustfmt` with:
             $ rustup update nightly
             $ rustup run nightly cargo install -f rustfmt-nightly
-            ");
+            "
+        );
     }
 }
