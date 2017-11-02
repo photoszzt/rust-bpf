@@ -456,7 +456,7 @@ impl Module {
         Ok(maps)
     }
 
-    fn relocate(&self, data: &Vec<u8>, rdata: &Vec<u8>) -> Result<(), String> {
+    fn relocate(&self, data: &SectionData, rdata: &Vec<u8>) -> Result<(), String> {
         let symtab_sec = match self.file.find_section_by_name(".symtab") {
             Some(s) => s,
             None => return Err("Fail to get symbol table".to_string()),
@@ -470,66 +470,79 @@ impl Module {
                 ))
             }
         };
-        loop {
-            let (symbol, offset) = match self.file.header.pt1.class() {
-                Class::SixtyFour => {
-                    let mut buf = Cursor::new(data);
-                    match self.file.header.pt1.data() {
-                        Data::LittleEndian => {
-                            let off = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 32;
-                            match symbols {
-                                SectionData::SymbolTable64(ss) => {
-                                    (ss[(sym_no - 1) as usize].clone(), off)
-                                },
-                                _ => panic!("Getting wrong symbols, expecting 64 bit symbol table")
-                            }
-                        }
-                        Data::BigEndian => {
-                            let off = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 32;
-                            match symbols {
-                                SectionData::SymbolTable64(ss) => {
-                                    (ss[(sym_no - 1) as usize].clone(), off)
-                                },
-                                _ => panic!("Getting wrong symbols, expecting 64 bit symbol table")
-                            }
-                        }
-                        _ => panic!("Unrecognize endian encoding"),
-                    }
-                }
-                Class::ThirtyTwo => {
-                    let mut buf = Cursor::new(data);
-                    match self.file.header.pt1.data() {
-                        Data::LittleEndian => {
-                            let off = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 8;
-                            match symbols {
-                                SectionData::SymbolTable32(ss) => {
-                                    (ss[(sym_no - 1) as usize].clone(), off)
-                                },
-                                _ => panic!("Getting wrong symbols, expecting 32 bit symbol table")
-                            }
-                        }
-                        Data::BigEndian => {
-                            let off = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
-                            let info = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
-                            let sym_no = info >> 8;
-                            match symbols {
-                                SectionData::SymbolTable32(ss) => {
-                                    (ss[(sym_no - 1) as usize].clone(), off)
-                                },
-                                _ => panic!("Getting wrong symbols, expecting 32 bit symbol table")
-                            }
-                        }
-                        _ => panic!("Unrecognize endian encoding"),
-                    }
-                }
-                _ => panic!("Unrecognize elf class"),
+        let rel_arr = match data {
+            SectionData::Rel64(ref r64_arr) => r64_arr,
+            SectionData::Rel32(ref r32_arr) => r32_arr,
+            _ => panic!("Passing in wrong section")
+        };
+        for rel in rel_arr {
+            let off = rel.get_offset();
+            let info = rel.get_type();
+            let sym_no = rel.get_symbol_table_index();
+            let symbol = match symtab_sec {
+                SectionData::SymbolTable64(ss) => ss[(sym_no - 1) as usize].clone(),
+                SectionData::SymbolTable32(ss) => ss[(sym_no - 1) as usize].clone(),
+                _ => unreachable!(),
             };
+            // let (symbol, offset) = match self.file.header.pt1.class() {
+            //     Class::SixtyFour => {
+            //         let mut buf = Cursor::new(data);
+            //         match self.file.header.pt1.data() {
+            //             Data::LittleEndian => {
+            //                 let off = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
+            //                 let info = buf.read_u64::<LittleEndian>().map_err(stringify_stdio)?;
+            //                 let sym_no = info >> 32;
+            //                 match symbols {
+            //                     SectionData::SymbolTable64(ss) => {
+            //                         (ss[(sym_no - 1) as usize].clone(), off)
+            //                     },
+            //                     _ => panic!("Getting wrong symbols, expecting 64 bit symbol table")
+            //                 }
+            //             }
+            //             Data::BigEndian => {
+            //                 let off = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
+            //                 let info = buf.read_u64::<BigEndian>().map_err(stringify_stdio)?;
+            //                 let sym_no = info >> 32;
+            //                 match symbols {
+            //                     SectionData::SymbolTable64(ss) => {
+            //                         (ss[(sym_no - 1) as usize].clone(), off)
+            //                     },
+            //                     _ => panic!("Getting wrong symbols, expecting 64 bit symbol table")
+            //                 }
+            //             }
+            //             _ => panic!("Unrecognize endian encoding"),
+            //         }
+            //     }
+            //     Class::ThirtyTwo => {
+            //         let mut buf = Cursor::new(data);
+            //         match self.file.header.pt1.data() {
+            //             Data::LittleEndian => {
+            //                 let off = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
+            //                 let info = buf.read_u32::<LittleEndian>().map_err(stringify_stdio)?;
+            //                 let sym_no = info >> 8;
+            //                 match symbols {
+            //                     SectionData::SymbolTable32(ss) => {
+            //                         (ss[(sym_no - 1) as usize].clone(), off)
+            //                     },
+            //                     _ => panic!("Getting wrong symbols, expecting 32 bit symbol table")
+            //                 }
+            //             }
+            //             Data::BigEndian => {
+            //                 let off = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
+            //                 let info = buf.read_u32::<BigEndian>().map_err(stringify_stdio)?;
+            //                 let sym_no = info >> 8;
+            //                 match symbols {
+            //                     SectionData::SymbolTable32(ss) => {
+            //                         (ss[(sym_no - 1) as usize].clone(), off)
+            //                     },
+            //                     _ => panic!("Getting wrong symbols, expecting 32 bit symbol table")
+            //                 }
+            //             }
+            //             _ => panic!("Unrecognize endian encoding"),
+            //         }
+            //     }
+            //     _ => panic!("Unrecognize elf class"),
+            // };
             let rinsn = unsafe {
                 &mut *(&rdata[offset as usize] as *const u8 as *const bpf_insn as *mut bpf_insn)
             };
@@ -572,23 +585,6 @@ impl Module {
     }
 
     pub unsafe fn load(&mut self, params: &HashMap<String, SectionParams>) -> Result<(), String> {
-        if self.file_name != "" {
-            let path = PathBuf::from(&self.file_name);
-            let file = match ::std::fs::File::open(path) {
-                Ok(r) => r,
-                Err(e) => return Err(format!("Fail to open file {}: {}", self.file_name, e)),
-            };
-            let mut buf = Vec::new();
-            match file.read_to_end(&mut buf) {
-                Ok(_) => (),
-                Err(e) => return Err(format!("Fail to read file {} to end: {}", self.file_name, e)),
-            }
-            self.file = Some(match elf::File::open_path(&path) {
-                Ok(f) => f,
-                Err(_) => panic!("Fail to open file: {}", &self.file_name),
-            });
-        }
-
         let license = self.elf_read_license()?;
 
         let version = {
@@ -606,14 +602,14 @@ impl Module {
                 continue;
             }
 
-            let data = sec.raw_data(&self.file);
-            if data.is_empty() {
+            if sec.raw_data(&self.file).is_empty() {
                 continue;
             }
 
             let sec_shtype = sec.get_type().map_err(|e| e.to_string())?;
             match sec_shtype {
                 ShType::Rel => {
+                    let data = sec.get_data(&self.file).map_err(|e| e.to_string())?;
                     let rsec = self.file.section_header(sec.shdr.info);
                     processed[idx] = true;
                     processed[sec.shdr.info as usize] = true;
