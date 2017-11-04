@@ -81,10 +81,10 @@ impl CgroupProgram {
         let ret = bpf_prog_attach(self.fd as u32, cgroup_fd as u32, attach_type);
         if ret < 0 {
             return Err(format!(
-                "Failed to attach prog to cgroup {}: {}",
-                cgroup_path,
-                nix::errno::errno()
-            ));
+                    "Failed to attach prog to cgroup {}: {}",
+                    cgroup_path,
+                    -ret
+                    ));
         }
         Ok(())
     }
@@ -95,10 +95,10 @@ impl CgroupProgram {
         let ret = bpf_prog_detach(self.fd as u32, cgroup_fd as u32, attach_type);
         if ret < 0 {
             return Err(format!(
-                "Failed to detach prog to cgroup {}: {}",
-                cgroup_path,
-                nix::errno::errno()
-            ));
+                    "Failed to detach prog to cgroup {}: {}",
+                    cgroup_path,
+                    -ret
+                    ));
         }
         Ok(())
     }
@@ -112,7 +112,7 @@ impl SocketFilter {
             libc::SO_ATTACH_BPF,
             &fd as *const i32 as *const _,
             ::std::mem::size_of::<i32>() as u32,
-        )
+            )
     }
 
     unsafe fn bpf_detach_socket(sock: i32) -> i32 {
@@ -122,16 +122,16 @@ impl SocketFilter {
             libc::SO_DETACH_BPF,
             ::std::ptr::null(),
             ::std::mem::size_of::<i32>() as u32,
-        )
+            )
     }
 
     pub fn attach_socket_filter(&self, sock_fd: i32) -> Result<(), String> {
         let ret = unsafe { SocketFilter::bpf_attach_socket(sock_fd, self.fd) };
         if ret < 0 {
             return Err(format!(
-                "Error attaching BPF socket filter: {}",
-                nix::errno::errno()
-            ));
+                    "Error attaching BPF socket filter: {}",
+                    nix::errno::errno()
+                    ));
         }
         Ok(())
     }
@@ -140,9 +140,9 @@ impl SocketFilter {
         let ret = unsafe { SocketFilter::bpf_detach_socket(sock_fd) };
         if ret < 0 {
             return Err(format!(
-                "Error detaching BPF socket filter: {}",
-                nix::errno::errno()
-            ));
+                    "Error detaching BPF socket filter: {}",
+                    nix::errno::errno()
+                    ));
         }
         Ok(())
     }
@@ -154,19 +154,19 @@ impl Kprobe {
         if efd < 0 {
             return Err(format!("perf event open error: {}", nix::errno::errno()));
         }
-        let ret = unsafe { syscall!(IOCTL, efd, PERF_EVENT_IOC_ENABLE, 0) };
+        let ret = unsafe { syscall!(IOCTL, efd, PERF_EVENT_IOC_ENABLE, 0) as i32};
         if ret != 0 {
             return Err(format!(
-                "Error enabling perf event: {}",
-                nix::errno::errno()
-            ));
+                    "Error enabling perf event: {}",
+                    -ret
+                    ));
         }
-        let ret = unsafe { syscall!(IOCTL, efd, PERF_EVENT_IOC_SET_BPF, prog_fd, 0) };
+        let ret = unsafe { syscall!(IOCTL, efd, PERF_EVENT_IOC_SET_BPF, prog_fd, 0) as i32 };
         if ret != 0 {
             return Err(format!(
-                "Error attaching bpf program to perf event: {}",
-                nix::errno::errno()
-            ));
+                    "Error attaching bpf program to perf event: {}",
+                    -ret
+                    ));
         }
         Ok(efd)
     }
@@ -181,13 +181,13 @@ impl Kprobe {
             maxactive_str,
             event_name,
             func_name
-        );
+            );
         f.write_all(cmd.as_bytes())?;
 
         let mut kprobeIdFile = match OpenOptions::new().read(true).open(format!(
-            "/sys/kernel/debug/tracing/events/kprobes/{}/id",
-            event_name
-        )) {
+                "/sys/kernel/debug/tracing/events/kprobes/{}/id",
+                event_name
+                )) {
             Ok(res) => res,
             Err(e) => if e.kind() == ErrorKind::NotFound {
                 return Err(Error::new(ErrorKind::Other, "Can't find kprobe id"));
@@ -262,7 +262,7 @@ impl TracepointProgram {
             1,
             1,
             tracepoint_id as u64,
-        );
+            );
         unsafe {
             syscall!(
                 PERF_EVENT_OPEN,
@@ -271,7 +271,7 @@ impl TracepointProgram {
                 cpu,
                 group_fd,
                 flags
-            ) as i32
+                ) as i32
         }
     }
 

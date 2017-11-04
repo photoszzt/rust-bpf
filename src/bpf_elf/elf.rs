@@ -41,12 +41,12 @@ fn bindgen_test_layout_bpf_map() {
         ::std::mem::size_of::<bpf_map>(),
         284usize,
         concat!("Size of: ", stringify!(bpf_map))
-    );
+        );
     assert_eq!(
         ::std::mem::align_of::<bpf_map>(),
         4usize,
         concat!("Alignment of ", stringify!(bpf_map))
-    );
+        );
     assert_eq!(
         unsafe { &(*(0 as *const bpf_map)).fd as *const _ as usize },
         0usize,
@@ -55,8 +55,8 @@ fn bindgen_test_layout_bpf_map() {
             stringify!(bpf_map),
             "::",
             stringify!(fd)
-        )
-    );
+            )
+        );
     assert_eq!(
         unsafe { &(*(0 as *const bpf_map)).def as *const _ as usize },
         4usize,
@@ -65,8 +65,8 @@ fn bindgen_test_layout_bpf_map() {
             stringify!(bpf_map),
             "::",
             stringify!(def)
-        )
-    );
+            )
+        );
 }
 impl Clone for bpf_map {
     fn clone(&self) -> Self {
@@ -114,10 +114,10 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
             bpf_cmd_BPF_MAP_CREATE,
             &attr as *const _ as usize,
             ::std::mem::size_of::<bpf_attr>()
-        )
+            ) as i32
     };
     println!("errno: {}, ret: {}", nix::errno::errno(), ret as i32);
-    if nix::errno::errno() == libc::EPERM {
+    if -ret == libc::EPERM {
         // When EPERM is returned, two reasons are possible:
         // 1. user has no permissions for bpf()
         // 2. user has insufficent rlimit for locked memory
@@ -139,18 +139,18 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
                         bpf_cmd_BPF_MAP_CREATE,
                         &attr as *const _ as usize,
                         ::std::mem::size_of::<bpf_attr>()
-                    );
+                        ) as i32;
                 } else {
                     println!(
                         "setrlimit() failed with errno={}",
                         Error::last_os_error().raw_os_error().unwrap()
-                    );
+                        );
                     return -1;
                 }
             }
         }
     }
-    return ret as i32;
+    return ret;
 }
 
 fn bpf_prog_load(prog_type: bpf_prog_type, insns: *const bpf_insn, prog_len: u32, license: *const u8, kern_version: u32, log_buf: *const u8, log_size: u32) -> i32 {
@@ -164,7 +164,7 @@ fn bpf_prog_load(prog_type: bpf_prog_type, insns: *const bpf_insn, prog_len: u32
         log_size as u32,
         log_buf as u64,
         kern_version,
-    );
+        );
 
     let mut ret = unsafe {
         syscall!(
@@ -172,44 +172,42 @@ fn bpf_prog_load(prog_type: bpf_prog_type, insns: *const bpf_insn, prog_len: u32
             bpf_cmd_BPF_PROG_LOAD,
             &attr as *const _ as usize,
             ::std::mem::size_of::<bpf_attr>()
-        )
+            ) as i32
     };
-    if let Some(raw_os_err) = Error::last_os_error().raw_os_error() {
-        if raw_os_err == libc::EPERM {
-            // When EPERM is returned, two reasons are possible:
-            // 1. user has no permissions for bpf()
-            // 2. user has insufficent rlimit for locked memory
-            // Unfortunately, there is no api to inspect the current usage of locked
-            // mem for the user, so an accurate calculation of how much memory to lock
-            // for this new program is difficult to calculate. As a hack, bump the limit
-            // to unlimited. If program load fails again, return the error.
-            let mut rl = libc::rlimit {
-                rlim_cur: 0,
-                rlim_max: 0,
-            };
-            unsafe {
-                if libc::getrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
-                    rl.rlim_max = libc::RLIM_INFINITY;
-                    rl.rlim_cur = rl.rlim_max;
-                    if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
-                        ret = syscall!(
-                            BPF,
-                            bpf_cmd_BPF_PROG_LOAD,
-                            &attr as *const _ as usize,
-                            ::std::mem::size_of::<bpf_attr>()
+    if -ret == libc::EPERM {
+        // When EPERM is returned, two reasons are possible:
+        // 1. user has no permissions for bpf()
+        // 2. user has insufficent rlimit for locked memory
+        // Unfortunately, there is no api to inspect the current usage of locked
+        // mem for the user, so an accurate calculation of how much memory to lock
+        // for this new program is difficult to calculate. As a hack, bump the limit
+        // to unlimited. If program load fails again, return the error.
+        let mut rl = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        unsafe {
+            if libc::getrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
+                rl.rlim_max = libc::RLIM_INFINITY;
+                rl.rlim_cur = rl.rlim_max;
+                if libc::setrlimit(libc::RLIMIT_MEMLOCK, &rl as *const _ as *mut _) == 0 {
+                    ret = syscall!(
+                        BPF,
+                        bpf_cmd_BPF_PROG_LOAD,
+                        &attr as *const _ as usize,
+                        ::std::mem::size_of::<bpf_attr>()
+                        ) as i32;
+                } else {
+                    println!(
+                        "setrlimit() failed with errno={}",
+                        Error::last_os_error().raw_os_error().unwrap()
                         );
-                    } else {
-                        println!(
-                            "setrlimit() failed with errno={}",
-                            Error::last_os_error().raw_os_error().unwrap()
-                        );
-                        return -1;
-                    }
+                    return -1;
                 }
             }
         }
     }
-    return ret as i32;
+    return ret;
 }
 
 fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String> {
@@ -236,13 +234,13 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
         }
     }
     println!("map_def type: {}, key_size: {}, value_size: {}, max_entries: {}", map_def.type_,
-    map_def.key_size, map_def.value_size, map_def.max_entries);
+             map_def.key_size, map_def.value_size, map_def.max_entries);
     map.fd = bpf_create_map(
         map_def.type_,
         map_def.key_size,
         map_def.value_size,
         map_def.max_entries,
-    );
+        );
     if map.fd < 0 {
         return Err("Fail to create map".to_string());
     }
@@ -253,7 +251,7 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
             bpf_obj_pin(
                 map.fd,
                 path_cstr.as_ptr(),
-            )
+                )
         };
         if ret < 0 {
             return Err("Fail to pin object".to_string());
@@ -281,9 +279,9 @@ impl bpf_map_def {
                         Ok(res) => res,
                         Err(e) => {
                             return Err(format!(
-                                "Fail to convert namespace to valid utf8 str: {}",
-                                e
-                            ))
+                                    "Fail to convert namespace to valid utf8 str: {}",
+                                    e
+                                    ))
                         }
                     }
                 };
@@ -292,16 +290,16 @@ impl bpf_map_def {
                 }
                 Ok(
                     [BPFFS_PATH, namespace, BPFDIRGLOBALS, map_name]
-                        .iter()
-                        .collect(),
-                )
+                    .iter()
+                    .collect(),
+                    )
             }
             PIN_CUSTOM_NS => {
                 if pin_path.is_none() {
                     return Err(format!(
-                        "no pin path given for map {} with PIN_CUSTOM_NS",
-                        map_name
-                    ));
+                            "no pin path given for map {} with PIN_CUSTOM_NS",
+                            map_name
+                            ));
                 }
                 Ok([BPFFS_PATH, pin_path.unwrap()].iter().collect())
             }
@@ -326,9 +324,9 @@ impl bpf_map_def {
     pub fn validate_path(path: &Path) -> ::std::io::Result<()> {
         if !path.starts_with(BPFFS_PATH) {
             Err(Error::new(
-                ErrorKind::Other,
-                "path doesn't start with bpffs path",
-            ))
+                    ErrorKind::Other,
+                    "path doesn't start with bpffs path",
+                    ))
         } else {
             Ok(())
         }
@@ -342,7 +340,7 @@ fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
         1,
         ::std::mem::size_of::<perf_event_attr>() as u32,
         perf_sw_ids_PERF_COUNT_SW_BPF_OUTPUT as u64,
-    );
+        );
     unsafe {
         syscall!(
             PERF_EVENT_OPEN,
@@ -351,7 +349,7 @@ fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
             cpu,
             group_fd,
             flags
-        ) as i32
+            ) as i32
     }
 }
 
@@ -399,9 +397,9 @@ impl<'a> Module<'a> {
             let data = sec.raw_data(&self.file);
             if data.len() != ::std::mem::size_of::<bpf_map_def>() {
                 return Err(format!(
-                    "only one map with size {} bytes allowed per section (check bpf_map_def)",
-                    ::std::mem::size_of::<bpf_map_def>()
-                ));
+                        "only one map with size {} bytes allowed per section (check bpf_map_def)",
+                        ::std::mem::size_of::<bpf_map_def>()
+                        ));
             }
 
             let trim_name = name.trim_left_matches("maps/");
@@ -429,7 +427,7 @@ impl<'a> Module<'a> {
                     page_count: 0,
                     pmu_fds: Vec::new(),
                 },
-            );
+                );
         }
         Ok(maps)
     }
@@ -441,12 +439,12 @@ impl<'a> Module<'a> {
                 .section_header(symbol.shndx())
                 .map_err(|e| e.to_string())?;
             return Err(format!(
-                "invalid relocation: symbol name={}\nsymbol section: Name={}, Type={:?}, Flags={}",
-                symbol.get_name(&self.file).unwrap(),
-                symbol_sec.get_name(&self.file).unwrap(),
-                symbol_sec.get_type().unwrap(),
-                symbol_sec.flags()
-            ));
+                    "invalid relocation: symbol name={}\nsymbol section: Name={}, Type={:?}, Flags={}",
+                    symbol.get_name(&self.file).unwrap(),
+                    symbol_sec.get_name(&self.file).unwrap(),
+                    symbol_sec.get_type().unwrap(),
+                    symbol_sec.flags()
+                    ));
         }
 
         let symbol_sec = self.file
@@ -456,21 +454,21 @@ impl<'a> Module<'a> {
         let symbol_name = symbol.get_name(&self.file).unwrap();
         if !symbol_sec_name.starts_with("maps/") {
             return Err(format!(
-                "map location not supported: map {} is in section {} instead of \"maps/{}\"",
-                symbol_name,
-                symbol_sec.get_name(&self.file).unwrap(),
-                symbol_name,
-            ));
+                    "map location not supported: map {} is in section {} instead of \"maps/{}\"",
+                    symbol_name,
+                    symbol_sec.get_name(&self.file).unwrap(),
+                    symbol_name,
+                    ));
         }
         let trim_symbol_sec_name = symbol_sec_name.trim_left_matches("maps/");
         let m = match self.maps.get(trim_symbol_sec_name) {
             Some(res) => res,
             None => {
                 return Err(format!(
-                    "relocation error, symbol {} not found in section {}",
-                    symbol_name,
-                    symbol_sec_name
-                ))
+                        "relocation error, symbol {} not found in section {}",
+                        symbol_name,
+                        symbol_sec_name
+                        ))
             }
         };
         rinsn.set_src_reg(BPF_PSEUDO_MAP_FD as u8);
@@ -487,9 +485,9 @@ impl<'a> Module<'a> {
             Ok(res) => res,
             Err(e) => {
                 return Err(format!(
-                    "Fail to get symbols from symbol table sections: {:?}",
-                    e
-                ))
+                        "Fail to get symbols from symbol table sections: {:?}",
+                        e
+                        ))
             }
         };
         if let &SectionData::Rel64(r64_arr) = data {
@@ -606,13 +604,14 @@ impl<'a> Module<'a> {
                             version,
                             self.log.as_ptr() as *const u8,
                             self.log.len() as u32,
-                        );
+                            );
                         if prog_fd < 0 {
                             return Err(format!(
-                                "error while loading {}: \n{}",
-                                sec_name,
-                                ::std::str::from_utf8(&self.log).unwrap()
-                            ));
+                                    "error while loading {}, {}: \n{}",
+                                    sec_name,
+                                    -prog_fd,
+                                    ::std::str::from_utf8(&self.log).unwrap()
+                                    ));
                         }
                         if is_kprobe || is_kretprobe {
                             self.probes.insert(
@@ -622,7 +621,7 @@ impl<'a> Module<'a> {
                                     fd: prog_fd,
                                     efd: -1,
                                 },
-                            );
+                                );
                         } else if is_cgroup_sock || is_cgroup_skb {
                             self.cgroup_programs.insert(
                                 sec_name.to_string(),
@@ -630,7 +629,7 @@ impl<'a> Module<'a> {
                                     insns: insns as usize,
                                     fd: prog_fd,
                                 },
-                            );
+                                );
                         } else if is_socket_filter {
                             self.socket_filters.insert(
                                 sec_name.to_string(),
@@ -638,7 +637,7 @@ impl<'a> Module<'a> {
                                     insns: insns as usize,
                                     fd: prog_fd,
                                 },
-                            );
+                                );
                         } else if is_tracepoint {
                             self.tracepoint_programs.insert(
                                 sec_name.to_string(),
@@ -647,7 +646,7 @@ impl<'a> Module<'a> {
                                     fd: prog_fd,
                                     efd: -1,
                                 },
-                            );
+                                );
                         } else if is_sched_cls || is_sched_act {
                             self.sched_programs.insert(
                                 sec_name.to_string(),
@@ -655,7 +654,7 @@ impl<'a> Module<'a> {
                                     insns: insns as usize,
                                     fd: prog_fd,
                                 },
-                            );
+                                );
                         }
                     }
                 }
@@ -717,13 +716,14 @@ impl<'a> Module<'a> {
                     version,
                     self.log.as_ptr() as *const u8,
                     self.log.len() as u32,
-                );
+                    );
                 if prog_fd < 0 {
                     return Err(format!(
-                        "error while loading {}: \n{}",
-                        sec_name,
-                        ::std::str::from_utf8(&self.log).unwrap()
-                    ));
+                            "error while loading {}, {}: \n{}",
+                            sec_name,
+                            -prog_fd,
+                            ::std::str::from_utf8(&self.log).unwrap()
+                            ));
                 }
                 if is_kprobe || is_kretprobe {
                     self.probes.insert(
@@ -733,7 +733,7 @@ impl<'a> Module<'a> {
                             fd: prog_fd,
                             efd: -1,
                         },
-                    );
+                        );
                 } else if is_cgroup_sock || is_cgroup_skb {
                     self.cgroup_programs.insert(
                         sec_name.to_string(),
@@ -741,7 +741,7 @@ impl<'a> Module<'a> {
                             insns: insns as usize,
                             fd: prog_fd,
                         },
-                    );
+                        );
                 } else if is_socket_filter {
                     self.socket_filters.insert(
                         sec_name.to_string(),
@@ -749,7 +749,7 @@ impl<'a> Module<'a> {
                             insns: insns as usize,
                             fd: prog_fd,
                         },
-                    );
+                        );
                 } else if is_tracepoint {
                     self.tracepoint_programs.insert(
                         sec_name.to_string(),
@@ -758,7 +758,7 @@ impl<'a> Module<'a> {
                             fd: prog_fd,
                             efd: -1,
                         },
-                    );
+                        );
                 } else if is_sched_cls || is_sched_act {
                     self.sched_programs.insert(
                         sec_name.to_string(),
@@ -766,7 +766,7 @@ impl<'a> Module<'a> {
                             insns: insns as usize,
                             fd: prog_fd,
                         },
-                    );
+                        );
                 }
             }
         }
@@ -793,9 +793,9 @@ impl<'a> Module<'a> {
                 if param.perf_ring_buffer_page_count > 0 {
                     if param.perf_ring_buffer_page_count & (param.perf_ring_buffer_page_count - 1) != 0 {
                         return Err(format!(
-                            "number of pages {} must be strictly positive and a power of 2",
-                            param.perf_ring_buffer_page_count
-                        ));
+                                "number of pages {} must be strictly positive and a power of 2",
+                                param.perf_ring_buffer_page_count
+                                ));
                     }
                     m.page_count = param.perf_ring_buffer_page_count as u32;
                 }
@@ -805,7 +805,7 @@ impl<'a> Module<'a> {
             for cpu in cpus.iter_mut() {
                 let pmufd = perf_event_open_map(-1, *cpu, -1, PERF_FLAG_FD_CLOEXEC as u64);
                 if pmufd < 0 {
-                    return Err("Fail to call perf_event_open".to_string());
+                    return Err(format!("Fail to call perf_event_open: {}", pmufd));
                 }
 
                 let mmap_size = pg_size * (m.page_count as i64 + 1);
@@ -818,15 +818,15 @@ impl<'a> Module<'a> {
                         nix::sys::mman::MAP_SHARED,
                         pmufd,
                         0,
-                    ).map_err(|e| format!("Fail to mmap: {}", e))?
+                        ).map_err(|e| format!("Fail to mmap: {}", e))?
                 };
 
                 let ret = unsafe { syscall!(IOCTL, pmufd, PERF_EVENT_IOC_ENABLE, 0) };
                 if ret != 0 {
                     return Err(format!(
-                        "Error enabling perf event: {}",
-                        Error::last_os_error().raw_os_error().unwrap()
-                    ));
+                            "Error enabling perf event: {}",
+                            ret as i32
+                            ));
                 }
 
                 let ret = unsafe {
@@ -835,14 +835,14 @@ impl<'a> Module<'a> {
                         cpu as *mut u32 as *mut _,
                         &pmufd as *const _ as *mut _,
                         BPF_ANY as u64,
-                    )
+                        )
                 };
                 if ret != 0 {
                     return Err(format!(
-                        "Cannot assign perf fd to map {} cpu {})",
-                        name,
-                        cpu
-                    ));
+                            "Cannot assign perf fd to map {} cpu {})",
+                            name,
+                            cpu
+                            ));
                 }
                 m.pmu_fds.push(pmufd);
                 m.headers.push(base as *mut perf_event_mmap_page);
