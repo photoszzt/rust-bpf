@@ -328,7 +328,7 @@ impl<'a> Module<'a> {
         header::sanity_check(&elf_file)?;
         Ok(Module {
             file: elf_file,
-            log: Vec::new(),
+            log: vec![0; 524288],
             maps: HashMap::new(),
             probes: HashMap::new(),
             cgroup_programs: HashMap::new(),

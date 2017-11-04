@@ -242,7 +242,7 @@ fn test_module_load_elf() {
     check_cgroupprogs(&b);
     check_socketfilters(&b);
     check_tracepointprogs(&b);
-    let expected_pin_path = "sys/fs/bpf/gobpf-test/testgroup1";
+    let expected_pin_path = "/sys/fs/bpf/gobpf-test/testgroup1";
     check_pin_config(expected_pin_path);
     res = b.close_ext(Some(&close_options));
     assert!(res.is_ok(), "Fail to close: {:?}", res);

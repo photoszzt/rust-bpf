@@ -13,7 +13,6 @@ fn test_module_load_bcc() {
             return 0;
         }
     }.to_string();
-    println!("program string: {}", &simple_prog);
     let code = CString::new(simple_prog).unwrap();
     let cflags = Vec::new();
     let res = bcc::module::new_module(&code, &cflags);

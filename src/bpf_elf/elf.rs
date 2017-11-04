@@ -19,7 +19,7 @@ use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use bpf_elf::module::*;
 use std::collections::HashMap;
 use std::path::Path;
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use perf_event_bindings::*;
 use bpf_elf::perf_event::PERF_EVENT_IOC_ENABLE;
 use xmas_elf::sections::{SectionData, ShType};
@@ -107,7 +107,6 @@ pub struct EbpfMap {
 
 fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u32) -> i32 {
     let attr = bpf_attr::bpf_attr_map_create(map_type, key_size, value_size, max_entries, 0);
-    println!("bpf_attr size: {}", ::std::mem::size_of::<bpf_attr>());
     let mut ret = unsafe {
         syscall!(
             BPF,
@@ -116,7 +115,6 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
             ::std::mem::size_of::<bpf_attr>()
             ) as i32
     };
-    println!("errno: {}, ret: {}", nix::errno::errno(), ret as i32);
     if -ret == libc::EPERM {
         // When EPERM is returned, two reasons are possible:
         // 1. user has no permissions for bpf()
@@ -233,8 +231,6 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
             do_pin = true;
         }
     }
-    println!("map_def type: {}, key_size: {}, value_size: {}, max_entries: {}", map_def.type_,
-             map_def.key_size, map_def.value_size, map_def.max_entries);
     map.fd = bpf_create_map(
         map_def.type_,
         map_def.key_size,
@@ -355,12 +351,10 @@ fn perf_event_open_map(pid: i32, cpu: u32, group_fd: i32, flags: u64) -> i32 {
 
 
 impl<'a> Module<'a> {
-    fn elf_read_license(&self) -> Result<String, String> {
+    fn elf_read_license(&self) -> Result<&'a CStr, String> {
         match self.file.find_section_by_name("license") {
-            Some(s) => match ::std::str::from_utf8(s.raw_data(&self.file)) {
-                Ok(res) => Ok(res.to_string()),
-                Err(e) => Err(format!("Fail to convert result to String: {}", e)),
-            },
+            Some(s) => CStr::from_bytes_with_nul(s.raw_data(&self.file))
+                .map_err(|e| format!("Fail to convert result to CStr: {}", e)),
             None => Err("Failed to look up license section".to_string()),
         }
     }
@@ -411,9 +405,7 @@ impl<'a> Module<'a> {
                     &*map_def_ptr
                 }
             };
-            println!("name: {}, trim_name: {}", name, trim_name);
             let map_path = map_def.create_map_path(trim_name, params.get(name))?;
-            println!("map_path: {:?}", map_path);
             let map = bpf_load_map(map_def, &map_path)?;
             if let Some(oldMap) = maps.get(trim_name) {
                 return Err(format!("Duplicate map: {} and {}", oldMap.name, trim_name));
