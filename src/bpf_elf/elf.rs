@@ -3,8 +3,9 @@ extern crate libc;
 extern crate nix;
 extern crate xmas_elf;
 
-use bcc_sys::bccapi::*;
-use bpf::bpf_map_def;
+use bpf_elf::bpf_bindings::*;
+use bcc_sys::bccapi::{bpf_obj_get, bpf_obj_pin, bpf_update_elem};
+use bpf_elf::bpf::{bpf_attr_ext};
 use bpf_elf::kernel_version::*;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -18,9 +19,9 @@ use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use bpf_elf::module::*;
 use std::collections::HashMap;
 use std::path::Path;
+use std::ffi::CString;
 use perf_event_bindings::*;
 use bpf_elf::perf_event::PERF_EVENT_IOC_ENABLE;
-use bpf::bpf_attr_ext;
 use xmas_elf::sections::{SectionData, ShType};
 use xmas_elf::symbol_table::Entry;
 use xmas_elf::header::Data;
@@ -104,22 +105,9 @@ pub struct EbpfMap {
     pub pmu_fds: Vec<i32>,
 }
 
-impl Default for bpf_map_def {
-    fn default() -> bpf_map_def {
-        bpf_map_def {
-            type_: 0,
-            key_size: 0,
-            value_size: 0,
-            max_entries: 0,
-            map_flags: 0,
-            pinning: 0,
-            namespace: [0; 256],
-        }
-    }
-}
-
 fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u32) -> i32 {
     let attr = bpf_attr::bpf_attr_map_create(map_type, key_size, value_size, max_entries, 0);
+    println!("bpf_attr size: {}", ::std::mem::size_of::<bpf_attr>());
     let mut ret = unsafe {
         syscall!(
             BPF,
@@ -128,7 +116,7 @@ fn bpf_create_map(map_type: u32, key_size: u32, value_size: u32, max_entries: u3
             ::std::mem::size_of::<bpf_attr>()
         )
     };
-    println!("errno: {}, ret: {}", nix::errno::errno(), ret);
+    println!("errno: {}, ret: {}", nix::errno::errno(), ret as i32);
     if nix::errno::errno() == libc::EPERM {
         // When EPERM is returned, two reasons are possible:
         // 1. user has no permissions for bpf()
@@ -235,7 +223,9 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
     } else if map_def.pinning == PIN_GLOBAL_NS || map_def.pinning == PIN_CUSTOM_NS {
         if nix::sys::stat::stat(path).is_ok()
         {
-            let fd = unsafe { bpf_obj_get(path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8) };
+            let path_cstr = CString::new(path.to_str().unwrap_or(""))
+                .map_err(|e| format!("Fail to convert to c string: {}", e))?;
+            let fd = unsafe { bpf_obj_get(path_cstr.as_ptr()) };
             if fd < 0 {
                 return Err("Fail to get pinned obj fd".to_string());
             }
@@ -245,6 +235,8 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
             do_pin = true;
         }
     }
+    println!("map_def type: {}, key_size: {}, value_size: {}, max_entries: {}", map_def.type_,
+    map_def.key_size, map_def.value_size, map_def.max_entries);
     map.fd = bpf_create_map(
         map_def.type_,
         map_def.key_size,
@@ -255,13 +247,15 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, String
         return Err("Fail to create map".to_string());
     }
     if do_pin {
-        let fd = unsafe {
+        let path_cstr = CString::new(path.to_str().unwrap_or(""))
+            .map_err(|e| format!("Fail to convert to c string: {}", e))?;
+        let ret = unsafe {
             bpf_obj_pin(
                 map.fd,
-                path.to_str().unwrap_or("").as_bytes().as_ptr() as *const i8,
+                path_cstr.as_ptr(),
             )
         };
-        if fd < 0 {
+        if ret < 0 {
             return Err("Fail to pin object".to_string());
         }
     }
@@ -543,6 +537,11 @@ impl<'a> Module<'a> {
         let length = self.file.section_iter().count();
         let mut processed = vec![false; length];
         for (idx, sec) in self.file.section_iter().enumerate() {
+            // Need to get over null section
+            if idx == 0 {
+                processed[idx] = true;
+                continue;
+            }
             if processed[idx] {
                 continue;
             }
@@ -570,27 +569,27 @@ impl<'a> Module<'a> {
                     let is_sched_cls = sec_name.starts_with("sched_cls/");
                     let is_sched_act = sec_name.starts_with("sched_act/");
 
-                    let progType = {
-                        if is_kprobe || is_kretprobe {
-                            bpf_prog_type_BPF_PROG_TYPE_KPROBE
-                        } else if is_cgroup_skb {
-                            bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
-                        } else if is_cgroup_sock {
-                            bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
-                        } else if is_socket_filter {
-                            bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
-                        } else if is_tracepoint {
-                            bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
-                        } else if is_sched_act {
-                            bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
-                        } else if is_sched_cls {
-                            bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
-                        } else {
-                            panic!("Invalid prog type");
-                        }
-                    };
-
                     if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint || is_sched_act || is_sched_cls {
+                        let progType = {
+                            if is_kprobe || is_kretprobe {
+                                bpf_prog_type_BPF_PROG_TYPE_KPROBE
+                            } else if is_cgroup_skb {
+                                bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
+                            } else if is_cgroup_sock {
+                                bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
+                            } else if is_socket_filter {
+                                bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
+                            } else if is_tracepoint {
+                                bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
+                            } else if is_sched_act {
+                                bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
+                            } else if is_sched_cls {
+                                bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
+                            } else {
+                                panic!("Invalid prog type");
+                            }
+                        };
+
                         let rdata = rsec.raw_data(&self.file);
                         if rdata.len() == 0 {
                             continue;
@@ -665,11 +664,12 @@ impl<'a> Module<'a> {
         }
 
         for (idx, sec) in self.file.section_iter().enumerate() {
-            if processed[idx] {
+            // Need to get over null section
+            if idx == 0 {
+                processed[idx] = true;
                 continue;
             }
-            let sec_shtype = sec.get_type().map_err(|e| e.to_string())?;
-            if let ShType::Null = sec_shtype {
+            if processed[idx] {
                 continue;
             }
             let sec_name = sec.get_name(&self.file).map_err(|e| e.to_string())?;
@@ -682,27 +682,27 @@ impl<'a> Module<'a> {
             let is_sched_cls = sec_name.starts_with("sched_cls/");
             let is_sched_act = sec_name.starts_with("sched_act/");
 
-            let progType = {
-                if is_kprobe || is_kretprobe {
-                    bpf_prog_type_BPF_PROG_TYPE_KPROBE
-                } else if is_cgroup_skb {
-                    bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
-                } else if is_cgroup_sock {
-                    bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
-                } else if is_socket_filter {
-                    bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
-                } else if is_tracepoint {
-                    bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
-                } else if is_sched_act {
-                    bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
-                } else if is_sched_cls {
-                    bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
-                } else {
-                    panic!("Invalid prog type");
-                }
-            };
-
             if is_kprobe || is_kretprobe || is_cgroup_sock || is_cgroup_skb || is_socket_filter || is_tracepoint || is_sched_act || is_sched_cls {
+                let progType = {
+                    if is_kprobe || is_kretprobe {
+                        bpf_prog_type_BPF_PROG_TYPE_KPROBE
+                    } else if is_cgroup_skb {
+                        bpf_prog_type_BPF_PROG_TYPE_CGROUP_SKB
+                    } else if is_cgroup_sock {
+                        bpf_prog_type_BPF_PROG_TYPE_CGROUP_SOCK
+                    } else if is_socket_filter {
+                        bpf_prog_type_BPF_PROG_TYPE_SOCKET_FILTER
+                    } else if is_tracepoint {
+                        bpf_prog_type_BPF_PROG_TYPE_TRACEPOINT
+                    } else if is_sched_act {
+                        bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT
+                    } else if is_sched_cls {
+                        bpf_prog_type_BPF_PROG_TYPE_SCHED_CLS
+                    } else {
+                        panic!("Invalid prog type");
+                    }
+                };
+
                 let data = sec.raw_data(&self.file);
                 if data.len() == 0 {
                     continue;

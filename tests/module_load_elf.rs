@@ -6,7 +6,6 @@ extern crate xmas_elf;
 
 use rust_bpf::bpf_elf;
 use rust_bpf::bpffs;
-use std::process;
 use rust_bpf::bpf_elf::module::{CgroupProgram, CloseOptions, Kprobe, Module, SocketFilter,
                                 TracepointProgram};
 use rust_bpf::bpf_elf::elf::{EbpfMap, SectionParams};

@@ -14,7 +14,6 @@ extern crate syscall;
 extern crate xmas_elf;
 
 pub mod perf_event_bindings;
-pub mod bpf;
 pub mod bpffs;
 pub mod cpuonline;
 pub mod bpf_elf;

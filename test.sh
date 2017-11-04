@@ -4,3 +4,4 @@ cd $PWD/tests
 ./build
 cd -
 RUST_BACKTRACE=1 $HOME/.cargo/bin/cargo test $@ -- --nocapture
+umount /sys/fs/bpf || true

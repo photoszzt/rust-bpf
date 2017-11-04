@@ -3,7 +3,7 @@ extern crate nix;
 
 use bpffs::fs::BPFFS_PATH;
 use std::path::Path;
-use bpf::bpf_map_def;
+use bpf_elf::bpf_bindings::bpf_map_def;
 use bpffs;
 use std::path::PathBuf;
 use bcc_sys::bccapi::bpf_obj_pin;

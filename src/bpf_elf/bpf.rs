@@ -1,23 +1,4 @@
-extern crate bcc_sys;
-
-use bcc_sys::bccapi::*;
-
-#[repr(C)]
-#[derive(Copy)]
-pub struct bpf_map_def {
-    pub type_: ::std::os::raw::c_uint,
-    pub key_size: ::std::os::raw::c_uint,
-    pub value_size: ::std::os::raw::c_uint,
-    pub max_entries: ::std::os::raw::c_uint,
-    pub map_flags: ::std::os::raw::c_uint,
-    pub pinning: ::std::os::raw::c_uint,
-    pub namespace: [::std::os::raw::c_char; 256usize],
-}
-impl Clone for bpf_map_def {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
+use bpf_elf::bpf_bindings::*;
 
 pub trait bpf_attr_ext {
     fn bpf_attr_map_create(map_type: u32, key_size: u32, value_size: u32, max_entries: u32, map_flags: u32) -> bpf_attr;
@@ -31,39 +12,36 @@ pub trait bpf_attr_ext {
 
 impl bpf_attr_ext for bpf_attr {
     fn bpf_attr_map_create(map_type: u32, key_size: u32, value_size: u32, max_entries: u32, map_flags: u32) -> bpf_attr {
-        bpf_attr {
-            __bindgen_anon_1: bpf_attr__bindgen_ty_1 {
-                map_type,
-                key_size,
-                value_size,
-                max_entries,
-                map_flags,
-                inner_map_fd: 0,
-                numa_node: 0,
-                map_name: [0; 16usize],
-            },
+        unsafe {
+            let mut x = ::std::mem::zeroed::<bpf_attr>();
+            x.__bindgen_anon_1.map_type = map_type;
+            x.__bindgen_anon_1.key_size = key_size;
+            x.__bindgen_anon_1.value_size = value_size;
+            x.__bindgen_anon_1.max_entries = max_entries;
+            x.__bindgen_anon_1.map_flags = map_flags;
+            x
         }
     }
 
     fn bpf_attr_elem_value(map_fd: u32, key: u64, value: u64, flags: u64) -> bpf_attr {
-        bpf_attr {
-            __bindgen_anon_2: bpf_attr__bindgen_ty_2 {
-                map_fd,
-                key,
-                __bindgen_anon_1: bpf_attr__bindgen_ty_2__bindgen_ty_1 { value },
-                flags,
-            },
+        unsafe {
+            let mut x = ::std::mem::zeroed::<bpf_attr>();
+            x.__bindgen_anon_2.map_fd = map_fd;
+            x.__bindgen_anon_2.key = key;
+            x.__bindgen_anon_2.__bindgen_anon_1 = bpf_attr__bindgen_ty_2__bindgen_ty_1 { value };
+            x.flags = flags;
+            x
         }
     }
 
     fn bpf_attr_elem_next_key(map_fd: u32, key: u64, next_key: u64, flags: u64) -> bpf_attr {
-        bpf_attr {
-            __bindgen_anon_2: bpf_attr__bindgen_ty_2 {
-                map_fd,
-                key,
-                __bindgen_anon_1: bpf_attr__bindgen_ty_2__bindgen_ty_1 { next_key },
-                flags,
-            },
+        unsafe {
+            let mut x = ::std::mem::zeroed::<bpf_attr>();
+            x.__bindgen_anon_2.map_fd = map_fd;
+            x.__bindgen_anon_2.key = key;
+            x.__bindgen_anon_2.__bindgen_anon_1 = bpf_attr__bindgen_ty_2__bindgen_ty_1 { next_key };
+            x.flags = flags;
+            x
         }
     }
 
@@ -78,8 +56,6 @@ impl bpf_attr_ext for bpf_attr {
                 log_size,
                 log_buf,
                 kern_version,
-                prog_flags: 0,
-                prog_name: [0; 16usize],
             },
         }
     }
@@ -96,13 +72,13 @@ impl bpf_attr_ext for bpf_attr {
                 target_fd,
                 attach_bpf_fd,
                 attach_type,
-                attach_flags: 0,
             },
         }
     }
 }
 
-pub fn bpf_verify_program(prog_type: bpf_prog_type, insns: u64, insns_cnt: usize, license: *const char, kern_version: u32, log_buf: &mut Vec<u8>, log_buf_sz: usize, log_level: u32) -> usize {
+pub fn bpf_verify_program(prog_type: bpf_prog_type, insns: u64, insns_cnt: usize, 
+                          license: *const char, kern_version: u32, log_buf: &mut Vec<u8>, log_buf_sz: usize, log_level: u32) -> usize {
     let attr = bpf_attr::bpf_attr_prog_load(
         prog_type as u32,
         insns_cnt as u32,

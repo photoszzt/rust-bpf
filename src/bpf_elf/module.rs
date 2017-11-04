@@ -1,10 +1,9 @@
-extern crate bcc_sys;
 extern crate libc;
 extern crate nix;
 extern crate xmas_elf;
 
 use std::collections::HashMap;
-use bcc_sys::bccapi::*;
+use bpf_elf::bpf_bindings::*;
 use bpf_elf::elf::EbpfMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Error, ErrorKind};
@@ -14,7 +13,7 @@ use std::str::FromStr;
 use std::io::{Read, Write};
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
-use bpf::{bpf_prog_attach, bpf_prog_detach};
+use bpf_elf::bpf::{bpf_prog_attach, bpf_prog_detach};
 use bpf_elf;
 use xmas_elf::{ElfFile, header};
 

@@ -1,3 +1,5 @@
+pub mod bpf_bindings;
+pub mod bpf;
 pub mod pinning;
 pub mod kernel_version;
 pub mod module;
