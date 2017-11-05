@@ -93,7 +93,7 @@ fn check_maps(b: &Module) {
     }
 
     if *KERNEL_VERSION >= *KERNEL_VERSION_48 {
-        expected_maps.push("dummpy_cgroup_array");
+        expected_maps.push("dummy_cgroup_array");
     } else {
         println!("kernel doesn't support cgroup array maps. Skipping...");
     }

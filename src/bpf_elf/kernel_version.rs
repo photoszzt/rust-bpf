@@ -68,15 +68,19 @@ fn current_version_debian() -> Result<u32, String> {
         Ok(_) => (),
         Err(e) => return Err(format!("Failed to read file: {}", e)),
     };
-    let versionParts = DEBIAN_VERSION_REGEX.captures(&s).unwrap();
-    if versionParts.len() != 2 {
-        return Err(format!(
-            "failed to get kernel version from /proc/version: {}",
-            s
-        ));
+    match DEBIAN_VERSION_REGEX.captures(&s) {
+        Some(versionParts) => {
+            if versionParts.len() != 2 {
+                return Err(format!(
+                        "failed to get kernel version from /proc/version: {}",
+                        s
+                        ));
+            }
+            let matched = versionParts.get(1).map_or("", |m| m.as_str());
+            return kernel_version_from_release_string(matched);
+        }
+        None => Err("Don't find devian version pattern".to_string()),
     }
-    let matched = versionParts.get(1).map_or("", |m| m.as_str());
-    return kernel_version_from_release_string(matched);
 }
 
 pub fn current_kernel_version() -> Result<u32, String> {
