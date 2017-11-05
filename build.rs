@@ -9,9 +9,7 @@ fn main() {
 
 const PERF_WHITELIST_TYPES: &'static [&'static str] = &[
     "perf_type_id",
-    "perf_event_attr",
-    "perf_event_sample_format",
-    "perf_event_mmap_page",
+    "perf_event_.*",
     "perf_sw_ids",
 ];
 

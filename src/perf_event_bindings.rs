@@ -49,6 +49,12 @@ pub const perf_event_sample_format_PERF_SAMPLE_TRANSACTION: perf_event_sample_fo
 pub const perf_event_sample_format_PERF_SAMPLE_REGS_INTR: perf_event_sample_format = 262144;
 pub const perf_event_sample_format_PERF_SAMPLE_MAX: perf_event_sample_format = 524288;
 pub type perf_event_sample_format = ::std::os::raw::c_uint;
+pub const perf_event_read_format_PERF_FORMAT_TOTAL_TIME_ENABLED: perf_event_read_format = 1;
+pub const perf_event_read_format_PERF_FORMAT_TOTAL_TIME_RUNNING: perf_event_read_format = 2;
+pub const perf_event_read_format_PERF_FORMAT_ID: perf_event_read_format = 4;
+pub const perf_event_read_format_PERF_FORMAT_GROUP: perf_event_read_format = 8;
+pub const perf_event_read_format_PERF_FORMAT_MAX: perf_event_read_format = 16;
+pub type perf_event_read_format = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct perf_event_attr {
@@ -1449,6 +1455,8 @@ impl perf_event_attr {
         (((((((((((((((((((((((((((0 | ((disabled as u64 as u64) << 0usize) & (0x1 as u64)) | ((inherit as u64 as u64) << 1usize) & (0x2 as u64)) | ((pinned as u64 as u64) << 2usize) & (0x4 as u64)) | ((exclusive as u64 as u64) << 3usize) & (0x8 as u64)) | ((exclude_user as u64 as u64) << 4usize) & (0x10 as u64)) | ((exclude_kernel as u64 as u64) << 5usize) & (0x20 as u64)) | ((exclude_hv as u64 as u64) << 6usize) & (0x40 as u64)) | ((exclude_idle as u64 as u64) << 7usize) & (0x80 as u64)) | ((mmap as u64 as u64) << 8usize) & (0x100 as u64)) | ((comm as u64 as u64) << 9usize) & (0x200 as u64)) | ((freq as u64 as u64) << 10usize) & (0x400 as u64)) | ((inherit_stat as u64 as u64) << 11usize) & (0x800 as u64)) | ((enable_on_exec as u64 as u64) << 12usize) & (0x1000 as u64)) | ((task as u64 as u64) << 13usize) & (0x2000 as u64)) | ((watermark as u64 as u64) << 14usize) & (0x4000 as u64)) | ((precise_ip as u64 as u64) << 15usize) & (0x18000 as u64)) | ((mmap_data as u64 as u64) << 17usize) & (0x20000 as u64)) | ((sample_id_all as u64 as u64) << 18usize) & (0x40000 as u64)) | ((exclude_host as u64 as u64) << 19usize) & (0x80000 as u64)) | ((exclude_guest as u64 as u64) << 20usize) & (0x100000 as u64)) | ((exclude_callchain_kernel as u64 as u64) << 21usize) & (0x200000 as u64)) | ((exclude_callchain_user as u64 as u64) << 22usize) & (0x400000 as u64)) | ((mmap2 as u64 as u64) << 23usize) & (0x800000 as u64)) | ((comm_exec as u64 as u64) << 24usize) & (0x1000000 as u64)) | ((use_clockid as u64 as u64) << 25usize) & (0x2000000 as u64)) | ((context_switch as u64 as u64) << 26usize) & (0x4000000 as u64)) | ((__reserved_1 as u64 as u64) << 27usize) & (0xfffffffff8000000 as u64))
     }
 }
+pub const perf_event_ioc_flags_PERF_IOC_FLAG_GROUP: perf_event_ioc_flags = 1;
+pub type perf_event_ioc_flags = ::std::os::raw::c_uint;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct perf_event_mmap_page {
@@ -2039,3 +2047,70 @@ impl ::std::fmt::Debug for perf_event_mmap_page {
         )
     }
 }
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
+pub struct perf_event_header {
+    pub type_: __u32,
+    pub misc: __u16,
+    pub size: __u16,
+}
+#[test]
+fn bindgen_test_layout_perf_event_header() {
+    assert_eq!(
+        ::std::mem::size_of::<perf_event_header>(),
+        8usize,
+        concat!("Size of: ", stringify!(perf_event_header))
+    );
+    assert_eq!(
+        ::std::mem::align_of::<perf_event_header>(),
+        4usize,
+        concat!("Alignment of ", stringify!(perf_event_header))
+    );
+    assert_eq!(
+        unsafe { &(*(0 as *const perf_event_header)).type_ as *const _ as usize },
+        0usize,
+        concat!(
+            "Alignment of field: ",
+            stringify!(perf_event_header),
+            "::",
+            stringify!(type_)
+        )
+    );
+    assert_eq!(
+        unsafe { &(*(0 as *const perf_event_header)).misc as *const _ as usize },
+        4usize,
+        concat!(
+            "Alignment of field: ",
+            stringify!(perf_event_header),
+            "::",
+            stringify!(misc)
+        )
+    );
+    assert_eq!(
+        unsafe { &(*(0 as *const perf_event_header)).size as *const _ as usize },
+        6usize,
+        concat!(
+            "Alignment of field: ",
+            stringify!(perf_event_header),
+            "::",
+            stringify!(size)
+        )
+    );
+}
+pub const perf_event_type_PERF_RECORD_MMAP: perf_event_type = 1;
+pub const perf_event_type_PERF_RECORD_LOST: perf_event_type = 2;
+pub const perf_event_type_PERF_RECORD_COMM: perf_event_type = 3;
+pub const perf_event_type_PERF_RECORD_EXIT: perf_event_type = 4;
+pub const perf_event_type_PERF_RECORD_THROTTLE: perf_event_type = 5;
+pub const perf_event_type_PERF_RECORD_UNTHROTTLE: perf_event_type = 6;
+pub const perf_event_type_PERF_RECORD_FORK: perf_event_type = 7;
+pub const perf_event_type_PERF_RECORD_READ: perf_event_type = 8;
+pub const perf_event_type_PERF_RECORD_SAMPLE: perf_event_type = 9;
+pub const perf_event_type_PERF_RECORD_MMAP2: perf_event_type = 10;
+pub const perf_event_type_PERF_RECORD_AUX: perf_event_type = 11;
+pub const perf_event_type_PERF_RECORD_ITRACE_START: perf_event_type = 12;
+pub const perf_event_type_PERF_RECORD_LOST_SAMPLES: perf_event_type = 13;
+pub const perf_event_type_PERF_RECORD_SWITCH: perf_event_type = 14;
+pub const perf_event_type_PERF_RECORD_SWITCH_CPU_WIDE: perf_event_type = 15;
+pub const perf_event_type_PERF_RECORD_MAX: perf_event_type = 16;
+pub type perf_event_type = ::std::os::raw::c_uint;
