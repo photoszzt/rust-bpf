@@ -129,6 +129,7 @@ impl Module {
                 size as i32,
                 license,
                 version,
+                1,
                 logbuf.as_ptr() as *const i8 as *mut _,
                 logbuf.len() as u32,
             )
