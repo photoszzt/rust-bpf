@@ -12,9 +12,11 @@ extern crate regex;
 #[macro_use]
 extern crate syscall;
 extern crate xmas_elf;
+#[macro_use]
+extern crate failure;
 
-pub mod perf_event_bindings;
+pub mod bcc;
+pub mod bpf_elf;
 pub mod bpffs;
 pub mod cpuonline;
-pub mod bpf_elf;
-pub mod bcc;
+pub mod perf_event_bindings;

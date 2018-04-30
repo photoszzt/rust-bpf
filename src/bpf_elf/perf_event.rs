@@ -5,7 +5,13 @@ pub const PERF_EVENT_IOC_ENABLE: u64 = 9216;
 pub const PERF_EVENT_IOC_SET_BPF: u64 = 0x40042408;
 
 impl perf_event_attr {
-    pub fn gen_perf_event_attr_open_map(perf_type: perf_type_id, sample_type: perf_event_sample_format, wakeup_events: u32, size: u32, config: u64) -> perf_event_attr {
+    pub fn gen_perf_event_attr_open_map(
+        perf_type: perf_type_id,
+        sample_type: perf_event_sample_format,
+        wakeup_events: u32,
+        size: u32,
+        config: u64,
+    ) -> perf_event_attr {
         perf_event_attr {
             type_: perf_type as u32,
             size,
@@ -16,7 +22,13 @@ impl perf_event_attr {
         }
     }
 
-    pub fn gen_perf_event_attr_open_tracepoint(perf_type: perf_type_id, sample_type: perf_event_sample_format, wakeup_events: u32, sample_period: u64, config: u64) -> perf_event_attr {
+    pub fn gen_perf_event_attr_open_tracepoint(
+        perf_type: perf_type_id,
+        sample_type: perf_event_sample_format,
+        wakeup_events: u32,
+        sample_period: u64,
+        config: u64,
+    ) -> perf_event_attr {
         perf_event_attr {
             type_: perf_type as u32,
             config,

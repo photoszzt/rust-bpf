@@ -1,9 +1,9 @@
 extern crate libc;
 extern crate nix;
 
+use bcc_sys::bccapi::{bpf_delete_elem, bpf_lookup_elem, bpf_update_elem};
 use bpf_elf::elf::EbpfMap;
 use std::os::raw::c_void;
-use bcc_sys::bccapi::{bpf_delete_elem, bpf_lookup_elem, bpf_update_elem};
 
 impl EbpfMap {
     /// stores value and key in the map.
@@ -11,7 +11,12 @@ impl EbpfMap {
     /// BPF_ANY to create new element or update existing;
     /// BPF_NOEXIST to create new element if it didn't exist;
     /// BPF_EXIST to update existing element.
-    pub fn update_element(&self, key: *mut c_void, value: *mut c_void, flags: u64) -> Result<(), String> {
+    pub fn update_element(
+        &self,
+        key: *mut c_void,
+        value: *mut c_void,
+        flags: u64,
+    ) -> Result<(), String> {
         let ret = unsafe { bpf_update_elem(self.m.fd, key, value, flags) };
         if ret < 0 {
             return Err(format!("Unable to update element: {}", nix::errno::errno()));

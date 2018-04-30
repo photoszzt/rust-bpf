@@ -1,13 +1,14 @@
 extern crate regex;
 
-use bcc_sys::bccapi::{bcc_resolve_symname, bcc_symbol, bcc_symbol_option, bcc_foreach_function_symbol};
-use std::os::raw::c_char;
-use std::ffi::CString;
+use bcc_sys::bccapi::{bcc_foreach_function_symbol, bcc_resolve_symname, bcc_symbol,
+                      bcc_symbol_option};
 use regex::Regex;
-use std::sync::Mutex;
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::ffi::CString;
+use std::os::raw::c_char;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 #[repr(C)]
 #[derive(Debug, Default, Clone)]
@@ -28,7 +29,12 @@ lazy_static! {
 }
 
 /// returns the file and offset to locate symname in module
-pub fn resolve_symbol_path(module: &str, symname: *const i8, addr: u64, pid: i32) -> Result<(*const c_char, u64), String> {
+pub fn resolve_symbol_path(
+    module: &str,
+    symname: *const i8,
+    addr: u64,
+    pid: i32,
+) -> Result<(*const c_char, u64), String> {
     let pid = if pid == -1 { 0 } else { pid };
     let mut symbol: bcc_symbol = Default::default();
     let mut symbol_option: bcc_symbol_option = Default::default();
@@ -53,7 +59,10 @@ pub fn resolve_symbol_path(module: &str, symname: *const i8, addr: u64, pid: i32
     }
 }
 
-fn get_user_symbols_and_address<'a>(sc: &'a mut SymbolCache, module: &'a str) -> Result<&'a Vec<SymbolAddress>, String> {
+fn get_user_symbols_and_address<'a>(
+    sc: &'a mut SymbolCache,
+    module: &'a str,
+) -> Result<&'a Vec<SymbolAddress>, String> {
     let list = sc.cache.entry(module.to_string()).or_insert(Vec::new());
     if list.len() == 0 {
         sc.current_module = Arc::new(module.to_string());
@@ -62,7 +71,9 @@ fn get_user_symbols_and_address<'a>(sc: &'a mut SymbolCache, module: &'a str) ->
             Ok(r) => r,
             Err(e) => return Err(format!("Fail to convert {} to c string: {}", module, e)),
         };
-        let res = unsafe { bcc_foreach_function_symbol(module_c.as_ptr(), Some(foreach_symbol_callback)) };
+        let res = unsafe {
+            bcc_foreach_function_symbol(module_c.as_ptr(), Some(foreach_symbol_callback))
+        };
         if res < 0 {
             return Err(format!("Unable to list symbols for {}", module));
         }
@@ -72,7 +83,10 @@ fn get_user_symbols_and_address<'a>(sc: &'a mut SymbolCache, module: &'a str) ->
 
 /// foreach_symbol_callback is a gateway function that will be exported to C
 /// so that it can be referenced as a function pointer
-unsafe extern "C" fn foreach_symbol_callback(symname: *const ::std::os::raw::c_char, addr: u64) -> ::std::os::raw::c_int {
+unsafe extern "C" fn foreach_symbol_callback(
+    symname: *const ::std::os::raw::c_char,
+    addr: u64,
+) -> ::std::os::raw::c_int {
     let mut sc = match symbol_cache.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),

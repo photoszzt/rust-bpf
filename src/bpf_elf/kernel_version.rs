@@ -1,12 +1,12 @@
 extern crate nix;
 extern crate regex;
-
+extern crate failure;
 
 use self::regex::Regex;
 use std::fs::File;
-use std::str::FromStr;
 use std::io::Read;
-
+use std::str::FromStr;
+use failure::Error;
 
 lazy_static! {
     static ref VERSION_REGEX: Regex = Regex::new(r"^(\d+)\.(\d+).(\d+).*$").unwrap();
@@ -14,13 +14,13 @@ lazy_static! {
         Regex::new(r".* SMP Debian (\d+\.\d+.\d+-\d+) .*").unwrap();
 }
 
-pub fn kernel_version_from_release_string(release_str: &str) -> Result<u32, String> {
+pub fn kernel_version_from_release_string(release_str: &str) -> Result<u32, Error> {
     let versionParts = match VERSION_REGEX.captures(release_str) {
         Some(r) => r,
-        None => return Err("Fail to find version from strings".to_string()),
+        None => return Err(format_err!("Fail to find version from strings")),
     };
     if versionParts.len() != 4 {
-        return Err(format!(
+        return Err(format_err!(
             "got invalid release version {} (expected format '4.3.2-1')",
             release_str
         ));
@@ -38,52 +38,38 @@ pub fn kernel_version_from_release_string(release_str: &str) -> Result<u32, Stri
     return Ok(out);
 }
 
-fn current_version_uname() -> Result<u32, String> {
+fn current_version_uname() -> Result<u32, Error> {
     let buf = nix::sys::utsname::uname();
     let release_str = buf.release().trim();
     return kernel_version_from_release_string(release_str);
 }
 
-fn current_version_ubuntu() -> Result<u32, String> {
-    let mut f = match File::open("/proc/version_signature") {
-        Ok(f) => f,
-        Err(e) => return Err(format!("Fail to open file: {}", e)),
-    };
+fn current_version_ubuntu() -> Result<u32, Error> {
     let mut s = String::new();
-    match f.read_to_string(&mut s) {
-        Ok(_) => (),
-        Err(e) => return Err(format!("Failed to read file: {}", e)),
-    }
+    File::open("/proc/version_signature")?.read_to_string(&mut s)?;
     let splitted: Vec<&str> = s.split_whitespace().collect();
     return kernel_version_from_release_string(splitted[2]);
 }
 
-fn current_version_debian() -> Result<u32, String> {
-    let mut f = match File::open("/proc/version") {
-        Ok(f) => f,
-        Err(e) => return Err(format!("Fail to open file: {}", e)),
-    };
+fn current_version_debian() -> Result<u32, Error> {
     let mut s = String::new();
-    match f.read_to_string(&mut s) {
-        Ok(_) => (),
-        Err(e) => return Err(format!("Failed to read file: {}", e)),
-    };
+    File::open("/proc/version")?.read_to_string(&mut s)?;
     match DEBIAN_VERSION_REGEX.captures(&s) {
         Some(versionParts) => {
             if versionParts.len() != 2 {
-                return Err(format!(
-                        "failed to get kernel version from /proc/version: {}",
-                        s
-                        ));
+                return Err(format_err!(
+                    "failed to get kernel version from /proc/version: {}",
+                    s
+                ));
             }
             let matched = versionParts.get(1).map_or("", |m| m.as_str());
             return kernel_version_from_release_string(matched);
         }
-        None => Err("Don't find devian version pattern".to_string()),
+        None => Err(format_err!("Don't find devian version pattern")),
     }
 }
 
-pub fn current_kernel_version() -> Result<u32, String> {
+pub fn current_kernel_version() -> Result<u32, Error> {
     let v = current_version_ubuntu();
     if let Ok(version) = v {
         return Ok(version);
@@ -99,49 +85,73 @@ pub fn current_kernel_version() -> Result<u32, String> {
 mod tests {
     use super::kernel_version_from_release_string;
 
-    struct test_data<'a> {
+    struct TestData<'a> {
         succeed: bool,
         release_string: &'a str,
         kernel_version: u32,
     }
     lazy_static! {
-        static ref test: Vec<test_data<'static>> = vec![
-            test_data {succeed: true,
-                       release_string: "4.1.2-3",
-                       kernel_version: 262402},
-            test_data {succeed: true,
-                       release_string: "4.8.14-200.fc24.x86_64",
-                       kernel_version: 264206},
-            test_data {succeed: true,
-                       release_string: "4.1.2-3foo",
-                       kernel_version: 262402},
-            test_data {succeed: true,
-                       release_string: "4.1.2foo-1",
-                       kernel_version: 262402},
-            test_data {succeed: true,
-                       release_string: "4.1.2-rkt-v1",
-                       kernel_version: 262402},
-            test_data {succeed: true,
-                       release_string: "4.1.2rkt-v1",
-                       kernel_version: 262402},
-            test_data {succeed: true,
-                       release_string: "4.1.2-3 foo",
-                       kernel_version: 262402},
-            test_data {succeed: false,
-                       release_string: "foo 4.1.2-3",
-                       kernel_version: 0},
-            test_data {succeed: true,
-                       release_string: "4.1.2",
-                       kernel_version: 262402},
-            test_data {succeed: false,
-                       release_string: ".4.1.2",
-                       kernel_version: 0},
-            test_data {succeed: false,
-                       release_string: "4.1.",
-                       kernel_version: 0},
-            test_data {succeed: false,
-                       release_string: "4.1",
-                       kernel_version: 0},
+        static ref test: Vec<TestData<'static>> = vec![
+            TestData {
+                succeed: true,
+                release_string: "4.1.2-3",
+                kernel_version: 262402,
+            },
+            TestData {
+                succeed: true,
+                release_string: "4.8.14-200.fc24.x86_64",
+                kernel_version: 264206,
+            },
+            TestData {
+                succeed: true,
+                release_string: "4.1.2-3foo",
+                kernel_version: 262402,
+            },
+            TestData {
+                succeed: true,
+                release_string: "4.1.2foo-1",
+                kernel_version: 262402,
+            },
+            TestData {
+                succeed: true,
+                release_string: "4.1.2-rkt-v1",
+                kernel_version: 262402,
+            },
+            TestData {
+                succeed: true,
+                release_string: "4.1.2rkt-v1",
+                kernel_version: 262402,
+            },
+            TestData {
+                succeed: true,
+                release_string: "4.1.2-3 foo",
+                kernel_version: 262402,
+            },
+            TestData {
+                succeed: false,
+                release_string: "foo 4.1.2-3",
+                kernel_version: 0,
+            },
+            TestData {
+                succeed: true,
+                release_string: "4.1.2",
+                kernel_version: 262402,
+            },
+            TestData {
+                succeed: false,
+                release_string: ".4.1.2",
+                kernel_version: 0,
+            },
+            TestData {
+                succeed: false,
+                release_string: "4.1.",
+                kernel_version: 0,
+            },
+            TestData {
+                succeed: false,
+                release_string: "4.1",
+                kernel_version: 0,
+            },
         ];
     }
     #[test]

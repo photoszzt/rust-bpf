@@ -3,12 +3,12 @@ extern crate nix;
 extern crate num_cpus;
 extern crate regex;
 
+use bcc::symbol::{match_user_symbols, resolve_symbol_path};
+use bcc_sys::bccapi::*;
+use regex::Regex;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
-use bcc_sys::bccapi::*;
-use std::os::raw::{c_void, c_char};
-use regex::Regex;
-use bcc::symbol::{resolve_symbol_path, match_user_symbols};
+use std::os::raw::{c_char, c_void};
 
 #[derive(Debug, Default)]
 pub struct Module {
@@ -33,7 +33,6 @@ lazy_static! {
     static ref KPROBE_REGEX: Regex = Regex::new(r"[+.]").unwrap();
     static ref UPROBE_REGEX: Regex = Regex::new(r"[^a-zA-Z0-9_]").unwrap();
 }
-
 
 pub fn new_module(code: &CStr, cflags: &Vec<CString>) -> Result<Module, String> {
     let mut cflagsC = {
@@ -103,7 +102,11 @@ impl Module {
         self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_KPROBE)
     }
 
-    fn load(&mut self, name: CString, prog_type: bcc_sys::bccapi::bpf_prog_type) -> Result<i32, String> {
+    fn load(
+        &mut self,
+        name: CString,
+        prog_type: bcc_sys::bccapi::bpf_prog_type,
+    ) -> Result<i32, String> {
         if let Some(fd) = self.funcs.get(&name) {
             return Ok(*fd);
         }
@@ -112,7 +115,11 @@ impl Module {
         Ok(fd)
     }
 
-    fn load_helper(&self, name: &CStr, prog_type: bcc_sys::bccapi::bpf_prog_type) -> Result<i32, String> {
+    fn load_helper(
+        &self,
+        name: &CStr,
+        prog_type: bcc_sys::bccapi::bpf_prog_type,
+    ) -> Result<i32, String> {
         let start = unsafe { bpf_function_start(self.p as *mut c_void, name.as_ptr()) };
         let size = unsafe { bpf_function_size(self.p as *mut c_void, name.as_ptr()) };
         let license = unsafe { bpf_module_license(self.p as *mut c_void) };
@@ -155,9 +162,17 @@ impl Module {
         return Ok(fd);
     }
 
-    fn attach_probe(&mut self, ev_name: String, attach_type: bpf_probe_attach_type, fn_name: &str, fd: i32) -> Result<(), String> {
-        let ev_name_c = CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
-        let fn_name_c = CString::new(fn_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
+    fn attach_probe(
+        &mut self,
+        ev_name: String,
+        attach_type: bpf_probe_attach_type,
+        fn_name: &str,
+        fd: i32,
+    ) -> Result<(), String> {
+        let ev_name_c =
+            CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
+        let fn_name_c =
+            CString::new(fn_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
         if self.kprobes.get(&ev_name_c).is_some() {
             return Ok(());
         }
@@ -190,8 +205,17 @@ impl Module {
         self.attach_probe(ev_name, bpf_probe_attach_type_BPF_PROBE_RETURN, fn_name, fd)
     }
 
-    fn attach_uprobe_helper(&mut self, ev_name: String, attach_type: bpf_probe_attach_type, path: *const c_char, addr: u64, fd: i32, pid: i32) -> Result<(), String> {
-        let ev_name_c = CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
+    fn attach_uprobe_helper(
+        &mut self,
+        ev_name: String,
+        attach_type: bpf_probe_attach_type,
+        path: *const c_char,
+        addr: u64,
+        fd: i32,
+        pid: i32,
+    ) -> Result<(), String> {
+        let ev_name_c =
+            CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
         let res = unsafe {
             bpf_attach_uprobe(
                 fd,
@@ -215,11 +239,13 @@ impl Module {
     /// The 'name' argument can be given as either a full library path (/usr/lib/..),
     /// a library without the lib prefix, or as a binary with full path (/bin/bash)
     /// A pid can be given to attach to, or -1 to attach to all processes.
-    pub fn attach_uprobe(&mut self,
-                         name: &str,
-                         symbol: *const i8,
-                         fd: i32,
-                         pid: i32) -> Result<(), String> {
+    pub fn attach_uprobe(
+        &mut self,
+        name: &str,
+        symbol: *const i8,
+        fd: i32,
+        pid: i32,
+    ) -> Result<(), String> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
             CStr::from_ptr(path)
@@ -241,7 +267,13 @@ impl Module {
     /// The 'name' argument can be given as either a full library path (/usr/lib/..),
     /// a library without the lib prefix, or as a binary with full path (/bin/bash)
     /// A pid can be given to attach to, or -1 to attach to all processes
-    pub fn attach_uretprobe(&mut self, name: &str, symbol: *const i8, fd: i32, pid: i32) -> Result<(), String> {
+    pub fn attach_uretprobe(
+        &mut self,
+        name: &str,
+        symbol: *const i8,
+        fd: i32,
+        pid: i32,
+    ) -> Result<(), String> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
             CStr::from_ptr(path)
@@ -264,13 +296,18 @@ impl Module {
     /// The 'name' argument can be given as either a full library path (/usr/lib/..),
     /// a library without the lib prefix, or as a binary with full path (/bin/bash)
     /// A pid can be given, or -1 to attach to all processes
-    pub fn attach_matching_uprobes(&mut self, name: &str, match_str: &str, fd: i32, pid: i32) -> Result<(), String> {
+    pub fn attach_matching_uprobes(
+        &mut self,
+        name: &str,
+        match_str: &str,
+        fd: i32,
+        pid: i32,
+    ) -> Result<(), String> {
         let symbols = match_user_symbols(name, match_str)?;
         if symbols.len() == 0 {
             return Err(format!(
                 "no symbols matching {} for {} found",
-                match_str,
-                name
+                match_str, name
             ));
         }
         for symbol in symbols {
@@ -284,13 +321,18 @@ impl Module {
     /// The 'name' argument can be given as either a full library path (/usr/lib/..),
     /// a library without the lib prefix, or as a binary with full path (/bin/bash)
     /// A pid can be given, or -1 to attach to all processes
-    pub fn attach_matching_uretprobes(&mut self, name: &str, match_str: &str, fd: i32, pid: i32) -> Result<(), String> {
+    pub fn attach_matching_uretprobes(
+        &mut self,
+        name: &str,
+        match_str: &str,
+        fd: i32,
+        pid: i32,
+    ) -> Result<(), String> {
         let symbols = match_user_symbols(name, match_str)?;
         if symbols.len() == 0 {
             return Err(format!(
                 "no symbols matching {} for {} found",
-                match_str,
-                name
+                match_str, name
             ));
         }
         for symbol in symbols {
@@ -321,8 +363,7 @@ impl Module {
                 Err(e) => {
                     return Err(format!(
                         "Fail to convert name {:p} to Rust str: {}",
-                        name,
-                        e
+                        name, e
                     ))
                 }
             }
@@ -338,8 +379,7 @@ impl Module {
                 Err(e) => {
                     return Err(format!(
                         "Fail to convert key_desc {:p} to Rust str: {}",
-                        key_desc,
-                        e
+                        key_desc, e
                     ))
                 }
             }
@@ -350,8 +390,7 @@ impl Module {
                 Err(e) => {
                     return Err(format!(
                         "Fail to convert leaf_desc {:p} to Rust str: {}",
-                        leaf_desc,
-                        e
+                        leaf_desc, e
                     ))
                 }
             }
@@ -375,8 +414,7 @@ impl Module {
         if ret != 0 {
             return Err(format!(
                 "failed to attach BPF xdp to device {}: {}",
-                dev_name,
-                ret
+                dev_name, ret
             ));
         }
         Ok(())

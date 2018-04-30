@@ -7,17 +7,12 @@ fn main() {
     build_bpf_bindings();
 }
 
-const PERF_WHITELIST_TYPES: &'static [&'static str] = &[
-    "perf_type_id",
-    "perf_event_.*",
-    "perf_sw_ids",
-];
+const PERF_WHITELIST_TYPES: &'static [&'static str] =
+    &["perf_type_id", "perf_event_.*", "perf_sw_ids"];
 
 const PERF_WHITELIST_VARS: &'static [&'static str] = &["PERF_FLAG_FD_CLOEXEC"];
 
-const BPF_WHITELIST_TYPES: &'static [&'static str] = &[
-    "bpf_.*",
-];
+const BPF_WHITELIST_TYPES: &'static [&'static str] = &["bpf_.*"];
 
 const BPF_WHITELIST_VARS: &'static [&'static str] = &[
     "LOG_BUF_SIZE",

@@ -2,7 +2,10 @@ extern crate bcc_sys;
 
 use bcc::module::Module;
 use bcc::module::TableDesc;
-use bcc_sys::bccapi::{bpf_table_key_size_id, bpf_table_leaf_size_id, bpf_update_elem, bpf_delete_elem, bpf_table_key_sscanf, bpf_table_leaf_sscanf, bpf_table_fd_id, bpf_lookup_elem, bpf_table_leaf_snprintf, bpf_get_next_key, bpf_get_first_key, bpf_table_key_snprintf};
+use bcc_sys::bccapi::{bpf_delete_elem, bpf_get_first_key, bpf_get_next_key, bpf_lookup_elem,
+                      bpf_table_fd_id, bpf_table_key_size_id, bpf_table_key_snprintf,
+                      bpf_table_key_sscanf, bpf_table_leaf_size_id, bpf_table_leaf_snprintf,
+                      bpf_table_leaf_sscanf, bpf_update_elem};
 use std::ffi::CString;
 
 use std::os::raw::c_void;
@@ -109,9 +112,7 @@ impl<'a> Table<'a> {
         if r != 0 {
             return Err(format!(
                 "Table.set: unable to update element ({}={}): {}",
-                key_str,
-                leaf_str,
-                r
+                key_str, leaf_str, r
             ));
         }
         Ok(())
@@ -124,8 +125,7 @@ impl<'a> Table<'a> {
         if r != 0 {
             return Err(format!(
                 "Table.delete: unable to delete element ({}): {}",
-                key_str,
-                r
+                key_str, r
             ));
         }
         Ok(())

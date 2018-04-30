@@ -4,27 +4,26 @@ extern crate nix;
 extern crate rust_bpf;
 extern crate xmas_elf;
 
+use nix::errno::Errno;
+use nix::Error::Sys;
 use rust_bpf::bpf_elf;
-use rust_bpf::bpffs;
+use rust_bpf::bpf_elf::elf::{EbpfMap, SectionParams};
 use rust_bpf::bpf_elf::module::{CgroupProgram, CloseOptions, Kprobe, Module, SocketFilter,
                                 TracepointProgram};
-use rust_bpf::bpf_elf::elf::{EbpfMap, SectionParams};
-use nix::Errno;
+use rust_bpf::bpffs;
 use std::collections::HashMap;
 use std::path::Path;
-use nix::Error::Sys;
 
 lazy_static! {
     static ref KERNEL_VERSION_46: u32 =
-    bpf_elf::kernel_version::kernel_version_from_release_string("4.6.0").unwrap();
+        bpf_elf::kernel_version::kernel_version_from_release_string("4.6.0").unwrap();
     static ref KERNEL_VERSION_47: u32 =
-    bpf_elf::kernel_version::kernel_version_from_release_string("4.7.0").unwrap();
+        bpf_elf::kernel_version::kernel_version_from_release_string("4.7.0").unwrap();
     static ref KERNEL_VERSION_48: u32 =
-    bpf_elf::kernel_version::kernel_version_from_release_string("4.8.0").unwrap();
+        bpf_elf::kernel_version::kernel_version_from_release_string("4.8.0").unwrap();
     static ref KERNEL_VERSION_410: u32 =
-    bpf_elf::kernel_version::kernel_version_from_release_string("4.10.0").unwrap();
-    static ref KERNEL_VERSION: u32 =
-    bpf_elf::kernel_version::current_kernel_version().unwrap();
+        bpf_elf::kernel_version::kernel_version_from_release_string("4.10.0").unwrap();
+    static ref KERNEL_VERSION: u32 = bpf_elf::kernel_version::current_kernel_version().unwrap();
 }
 
 fn contains_map(maps: &HashMap<String, EbpfMap>, name: &str) -> bool {
@@ -182,7 +181,9 @@ fn check_socketfilters(b: &Module) {
 fn check_pin_config(expected_path: &str) {
     let res = nix::sys::stat::stat(expected_path);
     match res {
-        Ok(r) => if r.st_mode & nix::sys::stat::S_IFMT.bits() != nix::sys::stat::S_IFREG.bits() {
+        Ok(r) => if r.st_mode & nix::sys::stat::SFlag::S_IFMT.bits()
+            != nix::sys::stat::SFlag::S_IFREG.bits()
+        {
             panic!("pinned object {} not found", expected_path);
         },
         Err(e) => match e {
