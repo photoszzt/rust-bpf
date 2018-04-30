@@ -167,9 +167,6 @@ impl Module {
                 attach_type,
                 ev_name_c.as_ptr(),
                 fn_name_c.as_ptr(),
-                -1,
-                0,
-                -1,
                 None,
                 ::std::ptr::null_mut(),
             )
@@ -203,8 +200,6 @@ impl Module {
                 path,
                 addr,
                 pid,
-                0,
-                -1,
                 None,
                 ::std::ptr::null_mut(),
             )
@@ -220,7 +215,11 @@ impl Module {
     /// The 'name' argument can be given as either a full library path (/usr/lib/..),
     /// a library without the lib prefix, or as a binary with full path (/bin/bash)
     /// A pid can be given to attach to, or -1 to attach to all processes.
-    pub fn attach_uprobe(&mut self, name: &str, symbol: *const i8, fd: i32, pid: i32) -> Result<(), String> {
+    pub fn attach_uprobe(&mut self,
+                         name: &str,
+                         symbol: *const i8,
+                         fd: i32,
+                         pid: i32) -> Result<(), String> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
             CStr::from_ptr(path)

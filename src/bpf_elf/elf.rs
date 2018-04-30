@@ -12,7 +12,7 @@ use std::io::ErrorKind;
 use std::default::Default;
 use std::path::PathBuf;
 use std::io::Cursor;
-use bpffs::fs::{mounted, BPFFS_PATH};
+use bpffs::{mounted, BPFFS_PATH};
 use cpuonline;
 use bpf_elf::pinning::BPFDIRGLOBALS;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
@@ -792,7 +792,7 @@ impl<'a> Module<'a> {
                     m.page_count = param.perf_ring_buffer_page_count as u32;
                 }
             }
-            let mut cpus = cpuonline::cpuonline::get()?;
+            let mut cpus = cpuonline::get()?;
 
             for cpu in cpus.iter_mut() {
                 let pmufd = perf_event_open_map(-1, *cpu, -1, PERF_FLAG_FD_CLOEXEC as u64);

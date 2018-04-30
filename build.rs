@@ -49,7 +49,7 @@ fn build_perf_event_bindings() {
         .derive_partialord(true)
         .derive_ord(true)
         .derive_hash(true)
-        .rustfmt_bindings(false);
+        .rustfmt_bindings(true);
 
     let builder = bindings
         .generate()
@@ -66,29 +66,13 @@ fn build_perf_event_bindings() {
         .ok()
         .map_or(false, |status| status.success());
 
-    if have_working_rustfmt {
-        let output = process::Command::new("rustup")
-            .args(&[
-                "run",
-                "nightly",
-                "rustfmt",
-                "--config-path",
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/rustfmt.toml"),
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/perf_event_bindings.rs"),
-            ])
-            .output()
-            .expect("fail to execute `rustup run nightly rustfmt`");
-        println!("status: {}", output.status);
-        println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-        println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-        assert!(output.status.success());
-    } else {
+    if !have_working_rustfmt {
         println!(
             "
         The latest `rustfmt` is required to format the generated bindings. Install
             `rustfmt` with:
-            $ rustup update nightly
-            $ rustup run nightly cargo install -f rustfmt-nightly
+            $ rustup component add rustfmt-preview
+            $ rustup update
             "
         );
     }
@@ -115,7 +99,7 @@ fn build_bpf_bindings() {
         .derive_partialord(true)
         .derive_ord(true)
         .derive_hash(true)
-        .rustfmt_bindings(false);
+        .rustfmt_bindings(true);
 
     let builder = bindings
         .generate()
@@ -132,29 +116,13 @@ fn build_bpf_bindings() {
         .ok()
         .map_or(false, |status| status.success());
 
-    if have_working_rustfmt {
-        let output = process::Command::new("rustup")
-            .args(&[
-                "run",
-                "nightly",
-                "rustfmt",
-                "--config-path",
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/rustfmt.toml"),
-                concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf_elf/bpf_bindings.rs"),
-            ])
-            .output()
-            .expect("fail to execute `rustup run nightly rustfmt`");
-        println!("status: {}", output.status);
-        println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-        println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-        assert!(output.status.success());
-    } else {
+    if !have_working_rustfmt {
         println!(
             "
         The latest `rustfmt` is required to format the generated bindings. Install
             `rustfmt` with:
-            $ rustup update nightly
-            $ rustup run nightly cargo install -f rustfmt-nightly
+            $ rustup component add rustfmt-preview
+            $ rustup update
             "
         );
     }

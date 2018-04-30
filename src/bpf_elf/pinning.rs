@@ -1,7 +1,7 @@
 extern crate bcc_sys;
 extern crate nix;
 
-use bpffs::fs::BPFFS_PATH;
+use bpffs::BPFFS_PATH;
 use std::path::Path;
 use bpf_elf::bpf_bindings::bpf_map_def;
 use bpffs;
@@ -11,7 +11,7 @@ use bcc_sys::bccapi::bpf_obj_pin;
 pub const BPFDIRGLOBALS: &'static str = "globals";
 
 fn pin_object_(fd: i32, path: &Path) -> Result<(), String> {
-    if !bpffs::fs::is_mounted()? {
+    if !bpffs::is_mounted()? {
         return Err(format!("bpf fs is not mounted at {}", BPFFS_PATH));
     }
     let parent_dir = path.parent().unwrap_or(Path::new("."));
