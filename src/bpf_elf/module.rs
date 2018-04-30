@@ -201,7 +201,8 @@ impl Kprobe {
             event_name))?;
         let mut buffer = String::new();
         kprobeIdFile.read_to_string(&mut buffer)?;
-        return i32::from_str(buffer.trim()).map_err(|e| ::std::io::Error::new(ErrorKind::Other, "Fail to convert to i32"));
+        return i32::from_str(buffer.trim())
+            .map_err(|e| ::std::io::Error::new(ErrorKind::Other, format!("{}", e)));
     }
 
     pub fn enable_kprobe(&mut self, sec_name: &str, maxactive: i32) -> Result<(), Error> {

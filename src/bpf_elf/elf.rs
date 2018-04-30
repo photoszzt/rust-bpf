@@ -14,7 +14,7 @@ use bpf_elf::pinning::BPFDIRGLOBALS;
 use bpffs::{mounted, BPFFS_PATH};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use cpuonline;
-use failure::Error;
+use failure::{Error, err_msg};
 use perf_event_bindings::*;
 use std::collections::HashMap;
 use std::default::Default;
@@ -224,14 +224,14 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, Error>
     };
     let mut do_pin = false;
     if map_def.pinning == PIN_OBJECT_NS {
-        return Err(format_err!("Not support object pinning"));
+        return Err(err_msg("Not support object pinning"));
     } else if map_def.pinning == PIN_GLOBAL_NS || map_def.pinning == PIN_CUSTOM_NS {
         if nix::sys::stat::stat(path).is_ok() {
             let path_cstr = CString::new(path.to_str().unwrap_or(""))?;
                 //.map_err(|e| format!("Fail to convert to c string: {}", e))?;
             let fd = unsafe { bpf_obj_get(path_cstr.as_ptr()) };
             if fd < 0 {
-                return Err(format_err!("Fail to get pinned obj fd"));
+                return Err(err_msg("Fail to get pinned obj fd"));
             }
             map.fd = fd as i32;
             return Ok(map);
@@ -246,13 +246,13 @@ fn bpf_load_map(map_def: &bpf_map_def, path: &PathBuf) -> Result<bpf_map, Error>
         map_def.max_entries,
     );
     if map.fd < 0 {
-        return Err(format_err!("Fail to create map"));
+        return Err(err_msg("Fail to create map"));
     }
     if do_pin {
         let path_cstr = CString::new(path.to_str().unwrap_or(""))?;
         let ret = unsafe { bpf_obj_pin(map.fd, path_cstr.as_ptr()) };
         if ret < 0 {
-            return Err(format_err!("Fail to pin object"));
+            return Err(err_msg("Fail to pin object"));
         }
     }
     Ok(map)
@@ -264,13 +264,13 @@ fn create_pin_path(path: &Path) -> Result<(), Error> {
         Some(d) => d,
         None => return Err(format_err!("Fail to get parent directory of {:?}", path)),
     };
-    ::std::fs::create_dir_all(parent)
+    ::std::fs::create_dir_all(parent).map_err(|e| e.into())
 }
 
 impl bpf_map_def {
     pub fn get_map_path(&self, map_name: &str, pin_path: Option<&str>) -> Result<PathBuf, Error> {
         match self.pinning {
-            PIN_OBJECT_NS => Err(format_err!("Not implemented yet")),
+            PIN_OBJECT_NS => Err(err_msg("Not implemented yet")),
             PIN_GLOBAL_NS => {
                 let namespace = unsafe {
                     match ::std::ffi::CStr::from_ptr(self.namespace.as_ptr()).to_str() {
@@ -358,7 +358,7 @@ impl<'a> Module<'a> {
         match self.file.find_section_by_name("license") {
             Some(s) => CStr::from_bytes_with_nul(s.raw_data(&self.file))
                 .map_err(|e| format_err!("Fail to convert to CStr: {}", e)),
-            None => Err(format_err!("Failed to look up license section")),
+            None => Err(err_msg("Failed to look up license section")),
         }
     }
 
@@ -371,12 +371,12 @@ impl<'a> Module<'a> {
                 }
                 let mut buf = Cursor::new(data);
                 match self.file.header.pt1.data() {
-                    Data::LittleEndian => buf.read_u32::<LittleEndian>(),
-                    Data::BigEndian => buf.read_u32::<BigEndian>(),
-                    _ => Err(format_err!("Unrecognized endien")),
+                    Data::LittleEndian => buf.read_u32::<LittleEndian>().map_err(|e| e.into()),
+                    Data::BigEndian => buf.read_u32::<BigEndian>().map_err(|e| e.into()),
+                    _ => Err(err_msg("Unrecognized endien")),
                 }
             }
-            None => Err(format_err!("Failed to look up version section")),
+            None => Err(err_msg("Failed to look up version section")),
         }
     }
 

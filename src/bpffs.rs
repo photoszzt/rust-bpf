@@ -3,6 +3,7 @@ extern crate nix;
 extern crate failure;
 
 use failure::Error;
+use std::error::Error as ErrorTrait;
 
 pub const BPFFS_PATH: &'static str = "/sys/fs/bpf";
 const FSTYPE: &'static str = "bpf";
