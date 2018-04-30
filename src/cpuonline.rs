@@ -2,7 +2,7 @@ use std::fs::File;
 use std::str::FromStr;
 use std::io::Read;
 
-const cpuonline: &'static str = "/sys/devices/system/cpu/online";
+const CPUONLINE: &'static str = "/sys/devices/system/cpu/online";
 
 // loosely based on https://github.com/iovisor/bcc/blob/v0.3.0/src/python/bcc/utils.py#L15
 fn read_cpu_range(cpu_range_str: &str) -> Result<Vec<u32>, String> {
@@ -30,11 +30,11 @@ fn read_cpu_range(cpu_range_str: &str) -> Result<Vec<u32>, String> {
 }
 
 pub fn get() -> Result<Vec<u32>, String> {
-    let mut f = File::open(cpuonline).map_err(|e| format!("{}", e))?;
+    let mut f = File::open(CPUONLINE).map_err(|e| format!("{}", e))?;
     let mut buffer = String::new();
     match f.read_to_string(&mut buffer) {
         Ok(_) => (),
-        Err(e) => return Err(format!("Fail to read {}: {}", cpuonline, e)),
+        Err(e) => return Err(format!("Fail to read {}: {}", CPUONLINE, e)),
     };
     return read_cpu_range(&buffer);
 }
@@ -43,55 +43,55 @@ pub fn get() -> Result<Vec<u32>, String> {
 mod tests {
     use super::read_cpu_range;
 
-    struct test_data<'a> {
+    struct TestData<'a> {
         data: &'a str,
         expected: Vec<u32>,
         valid: bool,
     }
 
     lazy_static! {
-        static ref test: Vec<test_data<'static>> = vec![
-                test_data {
+        static ref test: Vec<TestData<'static>> = vec![
+                TestData {
                       data: "",
                       expected: Vec::new(),
                       valid:    false,
                 },
-                test_data {
+                TestData {
                       data: "0-3\n",
                       expected: vec!{0, 1, 2, 3},
                       valid:    true,
                 },
-                test_data {
+                TestData {
                       data: "   0-2,5",
                       expected: vec!{0, 1, 2, 5},
                       valid:   true,
                 },
-                test_data {
+                TestData {
                       data: "0,2,4-5,7-9",
                       expected: vec!{0, 2, 4, 5, 7, 8, 9},
                       valid:   true,
                 },
-                test_data {
+                TestData {
                       data: "0,2",
                       expected: vec!{0, 2},
                       valid:   true,
                 },
-                test_data {
+                TestData {
                       data: "0",
                       expected: vec!{0},
                       valid:   true,
                 },
-                test_data {
+                TestData {
                       data: "-2,5",
                       expected: Vec::new(),
                       valid:   false,
                 },
-                test_data {
+                TestData {
                       data: "2-@,5",
                       expected: Vec::new(),
                       valid:   false,
                 },
-                test_data {
+                TestData {
                       data: "-",
                       expected: Vec::new(),
                       valid:   false,
