@@ -229,7 +229,7 @@ fn test_module_load_elf() {
         "maps/dummy_array_custom".to_string(),
         CloseOptions::new(true, pin_path_lossy.to_string()),
     );
-    let mut res = bpffs::fs::mounted();
+    let mut res = bpffs::mounted();
     assert!(res.is_ok(), "Fail to mount bpf fs: {:?}", res);
     let test_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests");
     let path = Path::new(test_dir).join(dummy_elf).canonicalize().unwrap();

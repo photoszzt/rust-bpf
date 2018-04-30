@@ -5,14 +5,14 @@ use std::error::Error;
 pub const BPFFS_PATH: &'static str = "/sys/fs/bpf";
 const FSTYPE: &'static str = "bpf";
 
-const FS_MAGIC_BPFFS: i32 = 0xCAFE4A11 as i32;
+const FS_MAGIC_BPFFS: u32 = 0xCAFE4A11;
 const NONE: Option<&'static [u8]> = None;
 
 // IsMounted checks if the BPF fs is mounted already
 pub fn is_mounted() -> Result<bool, String> {
     let mut data: libc::statfs = unsafe { ::std::mem::zeroed() };
     match nix::sys::statfs::statfs(BPFFS_PATH, &mut data) {
-        Ok(_) => Ok(data.f_type == FS_MAGIC_BPFFS as i64),
+        Ok(_) => Ok(data.f_type as i32 == FS_MAGIC_BPFFS as i32),
         Err(res) => Err(format!(
             "Cannot statfs {}: {}",
             BPFFS_PATH,
