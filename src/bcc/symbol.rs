@@ -1,4 +1,5 @@
 extern crate regex;
+extern crate failure;
 
 use bcc_sys::bccapi::{bcc_foreach_function_symbol, bcc_resolve_symname, bcc_symbol,
                       bcc_symbol_option};
@@ -9,6 +10,7 @@ use std::ffi::CString;
 use std::os::raw::c_char;
 use std::sync::Arc;
 use std::sync::Mutex;
+use failure::Error;
 
 #[repr(C)]
 #[derive(Debug, Default, Clone)]
@@ -34,13 +36,13 @@ pub fn resolve_symbol_path(
     symname: *const i8,
     addr: u64,
     pid: i32,
-) -> Result<(*const c_char, u64), String> {
+) -> Result<(*const c_char, u64), Error> {
     let pid = if pid == -1 { 0 } else { pid };
     let mut symbol: bcc_symbol = Default::default();
     let mut symbol_option: bcc_symbol_option = Default::default();
     let module_c = match CString::new(module) {
         Ok(r) => r,
-        Err(e) => return Err(format!("Fail to convert {} to c string: {}", module, e)),
+        Err(e) => return Err(format_err!("Fail to convert {} to c string: {}", module, e)),
     };
     let ret = unsafe {
         bcc_resolve_symname(
@@ -55,27 +57,27 @@ pub fn resolve_symbol_path(
     if ret == 0 {
         Ok((symbol.module, symbol.offset))
     } else {
-        Err(format!("Unable to locate symbol in module {}", module))
+        Err(format_err!("Unable to locate symbol in module {}", module))
     }
 }
 
 fn get_user_symbols_and_address<'a>(
     sc: &'a mut SymbolCache,
     module: &'a str,
-) -> Result<&'a Vec<SymbolAddress>, String> {
+) -> Result<&'a Vec<SymbolAddress>, Error> {
     let list = sc.cache.entry(module.to_string()).or_insert(Vec::new());
     if list.len() == 0 {
         sc.current_module = Arc::new(module.to_string());
 
         let module_c = match CString::new(module) {
             Ok(r) => r,
-            Err(e) => return Err(format!("Fail to convert {} to c string: {}", module, e)),
+            Err(e) => return Err(format_err!("Fail to convert {} to c string: {}", module, e)),
         };
         let res = unsafe {
             bcc_foreach_function_symbol(module_c.as_ptr(), Some(foreach_symbol_callback))
         };
         if res < 0 {
-            return Err(format!("Unable to list symbols for {}", module));
+            return Err(format_err!("Unable to list symbols for {}", module));
         }
     }
     return Ok(list);
@@ -107,10 +109,10 @@ unsafe extern "C" fn foreach_symbol_callback(
     return 0;
 }
 
-pub fn match_user_symbols(module: &str, match_str: &str) -> Result<Vec<SymbolAddress>, String> {
+pub fn match_user_symbols(module: &str, match_str: &str) -> Result<Vec<SymbolAddress>, Error> {
     let r = match Regex::new(match_str) {
         Ok(r) => r,
-        Err(e) => return Err(format!("Fail to compile regex: {}", e)),
+        Err(e) => return Err(format_err!("Fail to compile regex: {}", e)),
     };
     let mut sc = symbol_cache.lock().unwrap();
     let symbols = get_user_symbols_and_address(&mut sc, module)?;

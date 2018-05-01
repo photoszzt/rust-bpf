@@ -2,6 +2,7 @@ extern crate bcc_sys;
 extern crate nix;
 extern crate num_cpus;
 extern crate regex;
+extern crate failure;
 
 use bcc::symbol::{match_user_symbols, resolve_symbol_path};
 use bcc_sys::bccapi::*;
@@ -9,6 +10,8 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
+use failure::{Error, err_msg};
+
 
 #[derive(Debug, Default)]
 pub struct Module {
@@ -34,11 +37,11 @@ lazy_static! {
     static ref UPROBE_REGEX: Regex = Regex::new(r"[^a-zA-Z0-9_]").unwrap();
 }
 
-pub fn new_module(code: &CStr, cflags: &Vec<CString>) -> Result<Module, String> {
+pub fn new_module(code: &CStr, cflags: &Vec<CString>) -> Result<Module, Error> {
     let mut cflagsC = {
         let mut cFlagsC = cflags.clone();
         cFlagsC.push(CString::new(DEFAULT_C_FLAGS.as_bytes())
-            .map_err(|e| format!("Fail to construct cstring from: {}", e))?);
+            .map_err(|e| format_err!("Fail to construct cstring from: {}", e))?);
         cFlagsC
     };
     let c = unsafe {
@@ -50,7 +53,7 @@ pub fn new_module(code: &CStr, cflags: &Vec<CString>) -> Result<Module, String> 
         )
     };
     if c.is_null() {
-        return Err("Fail to construct the module".to_string());
+        return Err(err_msg("Fail to construct the module"));
     }
     return Ok(Module {
         p: c as usize,
@@ -59,7 +62,7 @@ pub fn new_module(code: &CStr, cflags: &Vec<CString>) -> Result<Module, String> 
 }
 
 impl Module {
-    pub fn close(self) -> Result<(), String> {
+    pub fn close(self) -> Result<(), Error> {
         unsafe {
             bpf_module_destroy(self.p as *mut c_void);
         }
@@ -69,7 +72,7 @@ impl Module {
             }
             let ret = unsafe { bpf_detach_kprobe(k.as_ptr()) };
             if ret < 0 {
-                return Err("Fail to detach kprobe".to_string());
+                return Err(err_msg("Fail to detach kprobe"));
             }
         }
         for (k, v) in self.uprobes {
@@ -78,27 +81,27 @@ impl Module {
             }
             let ret = unsafe { bpf_detach_uprobe(k.as_ptr()) };
             if ret < 0 {
-                return Err("Fail to detach kprobe".to_string());
+                return Err(err_msg("Fail to detach kprobe"));
             }
         }
         for (_, fd) in self.funcs {
-            nix::unistd::close(fd).map_err(|e| format!("Fail to close fd: {}", e))?;
+            nix::unistd::close(fd).map_err(|e| format_err!("Fail to close fd: {}", e))?;
         }
         Ok(())
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_ACT.
-    pub fn load_net(&mut self, name: CString) -> Result<i32, String> {
+    pub fn load_net(&mut self, name: CString) -> Result<i32, Error> {
         self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_SCHED_ACT)
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_KPROBE.
-    pub fn load_kprobe(&mut self, name: CString) -> Result<i32, String> {
+    pub fn load_kprobe(&mut self, name: CString) -> Result<i32, Error> {
         self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_KPROBE)
     }
 
     /// loads a program of type BPF_PROG_TYPE_SCHED_KPROBE.
-    pub fn load_uprobe(&mut self, name: CString) -> Result<i32, String> {
+    pub fn load_uprobe(&mut self, name: CString) -> Result<i32, Error> {
         self.load(name, bcc_sys::bccapi::bpf_prog_type_BPF_PROG_TYPE_KPROBE)
     }
 
@@ -106,7 +109,7 @@ impl Module {
         &mut self,
         name: CString,
         prog_type: bcc_sys::bccapi::bpf_prog_type,
-    ) -> Result<i32, String> {
+    ) -> Result<i32, Error> {
         if let Some(fd) = self.funcs.get(&name) {
             return Ok(*fd);
         }
@@ -119,13 +122,13 @@ impl Module {
         &self,
         name: &CStr,
         prog_type: bcc_sys::bccapi::bpf_prog_type,
-    ) -> Result<i32, String> {
+    ) -> Result<i32, Error> {
         let start = unsafe { bpf_function_start(self.p as *mut c_void, name.as_ptr()) };
         let size = unsafe { bpf_function_size(self.p as *mut c_void, name.as_ptr()) };
         let license = unsafe { bpf_module_license(self.p as *mut c_void) };
         let version = unsafe { bpf_module_kern_version(self.p as *mut c_void) };
         if start.is_null() {
-            return Err(format!("Module: unable to find {}", name.to_string_lossy()));
+            return Err(format_err!("Module: unable to find {}", name.to_string_lossy()));
         }
         let logbuf = [0u8; 65536];
         let fd = unsafe {
@@ -145,7 +148,7 @@ impl Module {
             let msg = ::std::str::from_utf8(&logbuf);
             if let Ok(m) = msg {
                 if m.len() > 0 {
-                    return Err(format!(
+                    return Err(format_err!(
                         "error loading BPF program: {}, {}, {}",
                         fd,
                         nix::errno::errno(),
@@ -153,7 +156,7 @@ impl Module {
                     ));
                 }
             }
-            return Err(format!(
+            return Err(format_err!(
                 "error loading BPF program: {}, {}",
                 fd,
                 nix::errno::errno()
@@ -168,11 +171,11 @@ impl Module {
         attach_type: bpf_probe_attach_type,
         fn_name: &str,
         fd: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let ev_name_c =
-            CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
+            CString::new(ev_name).map_err(|e| format_err!("Fail to convert to c style string: {}", e))?;
         let fn_name_c =
-            CString::new(fn_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
+            CString::new(fn_name).map_err(|e| format_err!("Fail to convert to c style string: {}", e))?;
         if self.kprobes.get(&ev_name_c).is_some() {
             return Ok(());
         }
@@ -187,20 +190,20 @@ impl Module {
             )
         };
         if ret.is_null() {
-            return Err("Failed to attach BPF kprobe".to_string());
+            return Err(err_msg("Failed to attach BPF kprobe"));
         }
         self.kprobes.insert(ev_name_c, ret as usize);
         Ok(())
     }
 
     /// attach a kprobe fd to a function.
-    pub fn attach_kprobe(&mut self, fn_name: &str, fd: i32) -> Result<(), String> {
+    pub fn attach_kprobe(&mut self, fn_name: &str, fd: i32) -> Result<(), Error> {
         let ev_name = format!("p_{}", KPROBE_REGEX.replace_all(fn_name, "_"));
         self.attach_probe(ev_name, bpf_probe_attach_type_BPF_PROBE_ENTRY, fn_name, fd)
     }
 
     /// attach a kretprobe fd to a function.
-    pub fn attach_kretprobe(&mut self, fn_name: &str, fd: i32) -> Result<(), String> {
+    pub fn attach_kretprobe(&mut self, fn_name: &str, fd: i32) -> Result<(), Error> {
         let ev_name = format!("r_{}", KPROBE_REGEX.replace_all(fn_name, "_"));
         self.attach_probe(ev_name, bpf_probe_attach_type_BPF_PROBE_RETURN, fn_name, fd)
     }
@@ -213,9 +216,9 @@ impl Module {
         addr: u64,
         fd: i32,
         pid: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let ev_name_c =
-            CString::new(ev_name).map_err(|e| format!("Fail to convert to c style string: {}", e))?;
+            CString::new(ev_name).map_err(|e| format_err!("Fail to convert to c style string: {}", e))?;
         let res = unsafe {
             bpf_attach_uprobe(
                 fd,
@@ -229,7 +232,7 @@ impl Module {
             )
         };
         if res.is_null() {
-            return Err("Failed to attach BPF uprobe".to_string());
+            return Err(err_msg("Failed to attach BPF uprobe"));
         }
         self.uprobes.insert(ev_name_c, res as usize);
         Ok(())
@@ -245,12 +248,12 @@ impl Module {
         symbol: *const i8,
         fd: i32,
         pid: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
             CStr::from_ptr(path)
                 .to_str()
-                .map_err(|e| format!("Fail to convert path to Rust str: {}", e))
+                .map_err(|e| format_err!("Fail to convert path to Rust str: {}", e))
         }?;
         let ev_name = format!("p_{}_0x{}", UPROBE_REGEX.replace_all(path_str, "_"), addr);
         self.attach_uprobe_helper(
@@ -273,12 +276,12 @@ impl Module {
         symbol: *const i8,
         fd: i32,
         pid: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let (path, addr) = resolve_symbol_path(name, symbol, 0x0, pid)?;
         let path_str = unsafe {
             CStr::from_ptr(path)
                 .to_str()
-                .map_err(|e| format!("Fail to convert path to Rust str: {}", e))
+                .map_err(|e| format_err!("Fail to convert path to Rust str: {}", e))
         }?;
         let ev_name = format!("p_{}_0x{}", UPROBE_REGEX.replace_all(path_str, "_"), addr);
         self.attach_uprobe_helper(
@@ -302,10 +305,10 @@ impl Module {
         match_str: &str,
         fd: i32,
         pid: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let symbols = match_user_symbols(name, match_str)?;
         if symbols.len() == 0 {
-            return Err(format!(
+            return Err(format_err!(
                 "no symbols matching {} for {} found",
                 match_str, name
             ));
@@ -327,10 +330,10 @@ impl Module {
         match_str: &str,
         fd: i32,
         pid: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let symbols = match_user_symbols(name, match_str)?;
         if symbols.len() == 0 {
-            return Err(format!(
+            return Err(format_err!(
                 "no symbols matching {} for {} found",
                 match_str, name
             ));
@@ -346,22 +349,22 @@ impl Module {
         return size as u64;
     }
 
-    pub fn table_id(&self, name: &str) -> Result<usize, String> {
+    pub fn table_id(&self, name: &str) -> Result<usize, Error> {
         let name_c = match CString::new(name) {
             Ok(r) => r,
-            Err(e) => return Err(format!("Fail to convert {} to Rust CString: {}", name, e)),
+            Err(e) => return Err(format_err!("Fail to convert {} to Rust CString: {}", name, e)),
         };
         let id = unsafe { bpf_table_id(self.p as *mut c_void, name_c.as_ptr()) };
         Ok(id)
     }
 
-    pub fn table_desc(&self, id: u64) -> Result<TableDesc, String> {
+    pub fn table_desc(&self, id: u64) -> Result<TableDesc, Error> {
         let name = unsafe { bpf_table_name(self.p as *mut c_void, id as usize) };
         let name_str = unsafe {
             match CStr::from_ptr(name).to_str() {
                 Ok(r) => r,
                 Err(e) => {
-                    return Err(format!(
+                    return Err(format_err!(
                         "Fail to convert name {:p} to Rust str: {}",
                         name, e
                     ))
@@ -377,7 +380,7 @@ impl Module {
             match CStr::from_ptr(key_desc).to_str() {
                 Ok(r) => r,
                 Err(e) => {
-                    return Err(format!(
+                    return Err(format_err!(
                         "Fail to convert key_desc {:p} to Rust str: {}",
                         key_desc, e
                     ))
@@ -388,7 +391,7 @@ impl Module {
             match CStr::from_ptr(leaf_desc).to_str() {
                 Ok(r) => r,
                 Err(e) => {
-                    return Err(format!(
+                    return Err(format_err!(
                         "Fail to convert leaf_desc {:p} to Rust str: {}",
                         leaf_desc, e
                     ))
@@ -405,14 +408,14 @@ impl Module {
         })
     }
 
-    pub fn attach_xdp(&self, dev_name: &str, fd: i32) -> Result<(), String> {
+    pub fn attach_xdp(&self, dev_name: &str, fd: i32) -> Result<(), Error> {
         let dev_name_c = match CString::new(dev_name) {
             Ok(r) => r,
-            Err(e) => return Err(format!("Fail to convert {} to c string: {}", dev_name, e)),
+            Err(e) => return Err(format_err!("Fail to convert {} to c string: {}", dev_name, e)),
         };
         let ret = unsafe { bpf_attach_xdp(dev_name_c.as_ptr(), fd, 0) };
         if ret != 0 {
-            return Err(format!(
+            return Err(format_err!(
                 "failed to attach BPF xdp to device {}: {}",
                 dev_name, ret
             ));
@@ -420,7 +423,7 @@ impl Module {
         Ok(())
     }
 
-    pub fn remove_xdp(&self, dev_name: &str) -> Result<(), String> {
+    pub fn remove_xdp(&self, dev_name: &str) -> Result<(), Error> {
         self.attach_xdp(dev_name, -1)
     }
 }
